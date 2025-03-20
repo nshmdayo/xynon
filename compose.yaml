@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  nproxy:
+    build:
+      dockerfile: ./build/Dockerfile
+    ports:
+      - "8000:8000"
+    container_name: nproxy
+    restart: always
+    networks:
+      - app_network
+
+  httpbin:
+    image: kennethreitz/httpbin
+    container_name: httpbin
+    ports:
+      - "8080:80"
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
