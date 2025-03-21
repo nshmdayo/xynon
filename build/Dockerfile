@@ -4,7 +4,7 @@ WORKDIR /
 COPY go.mod ./
 RUN go mod download
 WORKDIR /app
-COPY app/main.go ./
+COPY app/ ./
 RUN go build -o main /app/main.go
 
 # ステージ２

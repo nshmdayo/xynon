@@ -9,7 +9,7 @@ services:
     container_name: nproxy
     restart: always
     networks:
-      - app_network
+      - nproxy_vpn
 
   httpbin:
     image: kennethreitz/httpbin
@@ -17,8 +17,8 @@ services:
     ports:
       - "8080:80"
     networks:
-      - app_network
+      - nproxy_vpn
 
 networks:
-  app_network:
+  nproxy_vpn:
     driver: bridge
