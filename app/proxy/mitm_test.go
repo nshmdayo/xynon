@@ -45,12 +45,12 @@ func TestMITMProxy_SetHandler(t *testing.T) {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// ハンドラーが設定されていないことを確認
+	// Verify that handler is not set
 	if proxy.Handler != nil {
 		t.Error("Handler should be nil initially")
 	}
 
-	// ハンドラーを設定
+	// Set handler
 	var called bool
 	handler := func(req *http.Request, resp *http.Response) {
 		called = true
@@ -61,7 +61,7 @@ func TestMITMProxy_SetHandler(t *testing.T) {
 		t.Error("Handler was not set")
 	}
 
-	// ハンドラーが呼び出されることを確認
+	// Verify that handler is called
 	proxy.Handler(nil, nil)
 	if !called {
 		t.Error("Handler was not called")
@@ -69,7 +69,7 @@ func TestMITMProxy_SetHandler(t *testing.T) {
 }
 
 func TestMITMProxy_HandleHTTP(t *testing.T) {
-	// テスト用ターゲットサーバーを作成
+	// Create test target server
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Response", "true")
 		w.WriteHeader(http.StatusOK)
@@ -77,13 +77,13 @@ func TestMITMProxy_HandleHTTP(t *testing.T) {
 	}))
 	defer targetServer.Close()
 
-	// MITM プロキシを作成
+	// Create MITM proxy
 	proxy, err := NewMITMProxy(":0")
 	if err != nil {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// リクエスト・レスポンス傍受ハンドラーを設定
+	// Set request/response interception handler
 	var interceptedRequest *http.Request
 	var interceptedResponse *http.Response
 	proxy.SetHandler(func(req *http.Request, resp *http.Response) {
@@ -97,17 +97,17 @@ func TestMITMProxy_HandleHTTP(t *testing.T) {
 		}
 	})
 
-	// テスト用リクエストを作成
+	// Create test request
 	req := httptest.NewRequest("GET", targetServer.URL, nil)
 	req.Header.Set("X-Original-Header", "test")
 
-	// レスポンスレコーダーを作成
+	// Create response recorder
 	w := httptest.NewRecorder()
 
-	// HTTPリクエストを処理
+	// Process HTTP request
 	proxy.handleHTTP(w, req)
 
-	// レスポンスを検証
+	// Verify response
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
@@ -116,7 +116,7 @@ func TestMITMProxy_HandleHTTP(t *testing.T) {
 		t.Errorf("Expected body 'Hello from target', got '%s'", body)
 	}
 
-	// ヘッダーが正しく設定されていることを確認
+	// Verify headers are set correctly
 	if w.Header().Get("X-Test-Response") != "true" {
 		t.Error("Target server header was not copied")
 	}
@@ -125,7 +125,7 @@ func TestMITMProxy_HandleHTTP(t *testing.T) {
 		t.Error("Intercepted response header was not added")
 	}
 
-	// リクエストが傍受されたことを確認
+	// Verify request was intercepted
 	if interceptedRequest == nil {
 		t.Error("Request was not intercepted")
 	} else {
@@ -134,7 +134,7 @@ func TestMITMProxy_HandleHTTP(t *testing.T) {
 		}
 	}
 
-	// レスポンスが傍受されたことを確認
+	// Verify response was intercepted
 	if interceptedResponse == nil {
 		t.Error("Response was not intercepted")
 	}
@@ -146,16 +146,16 @@ func TestMITMProxy_HandleConnect(t *testing.T) {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// CONNECT リクエストを作成
+	// Create CONNECT request
 	req := httptest.NewRequest("CONNECT", "https://example.com:443", nil)
 	req.Host = "example.com:443"
 
 	w := httptest.NewRecorder()
 
-	// CONNECT メソッドを処理
+	// Process CONNECT method
 	proxy.handleConnect(w, req)
 
-	// レスポンスステータスを確認（接続が確立されるまでのステータス）
+	// Verify response status (status until connection is established)
 	if w.Code != http.StatusOK {
 		t.Logf("CONNECT response status: %d (this may be expected for test environment)", w.Code)
 	}
@@ -193,9 +193,9 @@ func TestMITMProxy_GenerateCert(t *testing.T) {
 			t.Errorf("Certificate is empty for host %s", test.host)
 		}
 
-		// 証明書の内容を検証
+		// Verify certificate content
 		if len(cert.Certificate) > 0 {
-			// 証明書をパース
+			// Parse certificate
 			parsedCert, err := tls.X509KeyPair(cert.Certificate[0], nil)
 			if err == nil && parsedCert.Certificate != nil {
 				t.Logf("Certificate generated successfully for %s", test.host)
@@ -231,28 +231,28 @@ func TestMITMProxy_SaveCA(t *testing.T) {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// テスト用の一時ディレクトリを作成
+	// Create temporary directory for testing
 	tempDir := "./test_certs"
 	proxy.CertDir = tempDir
 	defer os.RemoveAll(tempDir)
 
-	// ディレクトリを作成
+	// Create directory
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 
-	// CA証明書を保存
+	// Save CA certificate
 	if err := proxy.saveCA(); err != nil {
 		t.Fatalf("Failed to save CA certificate: %v", err)
 	}
 
-	// ファイルが存在することを確認
+	// Verify file exists
 	certFile := tempDir + "/ca.crt"
 	if _, err := os.Stat(certFile); os.IsNotExist(err) {
 		t.Error("CA certificate file was not created")
 	}
 
-	// ファイルの内容を確認
+	// Verify file content
 	content, err := os.ReadFile(certFile)
 	if err != nil {
 		t.Fatalf("Failed to read CA certificate file: %v", err)
@@ -272,7 +272,7 @@ func TestMITMProxy_Integration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// ターゲットサーバーを作成
+	// Create target server
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -280,17 +280,17 @@ func TestMITMProxy_Integration(t *testing.T) {
 	}))
 	defer targetServer.Close()
 
-	// MITM プロキシを作成
+	// Create MITM proxy
 	proxy, err := NewMITMProxy(":0")
 	if err != nil {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// テスト用の証明書ディレクトリを設定
+	// Set test certificate directory
 	proxy.CertDir = "./test_integration_certs"
 	defer os.RemoveAll(proxy.CertDir)
 
-	// リクエスト・レスポンス統計を収集
+	// Collect request/response statistics
 	var requestCount, responseCount int
 	proxy.SetHandler(func(req *http.Request, resp *http.Response) {
 		if req != nil {
@@ -303,11 +303,11 @@ func TestMITMProxy_Integration(t *testing.T) {
 		}
 	})
 
-	// プロキシサーバーをテスト用に起動
+	// Start proxy server for testing
 	proxyServer := httptest.NewServer(http.HandlerFunc(proxy.handleRequest))
 	defer proxyServer.Close()
 
-	// プロキシ経由でリクエストを送信
+	// Send request via proxy
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: func(req *http.Request) (*url.URL, error) {
@@ -323,7 +323,7 @@ func TestMITMProxy_Integration(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// レスポンスを検証
+	// Verify response
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
@@ -338,7 +338,7 @@ func TestMITMProxy_Integration(t *testing.T) {
 		t.Errorf("Expected body '%s', got '%s'", expectedBody, string(body))
 	}
 
-	// 統計を確認（プロキシを通すと複数回呼ばれる可能性があるため、最低1回は確認）
+	// Verify statistics (may be called multiple times through proxy, so check at least once)
 	if requestCount < 1 {
 		t.Errorf("Expected at least 1 intercepted request, got %d", requestCount)
 	}
@@ -375,14 +375,14 @@ func TestMITMProxy_HandleRequestMethod(t *testing.T) {
 
 		w := httptest.NewRecorder()
 
-		// リクエストを処理
+		// Process request
 		proxy.handleRequest(w, req)
 
 		t.Logf("Method %s handled, response status: %d", test.method, w.Code)
 	}
 }
 
-// ベンチマークテスト
+// Benchmark tests
 func BenchmarkMITMProxy_GenerateCert(b *testing.B) {
 	proxy, err := NewMITMProxy(":0")
 	if err != nil {
@@ -399,7 +399,7 @@ func BenchmarkMITMProxy_GenerateCert(b *testing.B) {
 }
 
 func BenchmarkMITMProxy_HandleHTTP(b *testing.B) {
-	// ターゲットサーバーを作成
+	// Create target server
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -421,13 +421,13 @@ func BenchmarkMITMProxy_HandleHTTP(b *testing.B) {
 }
 
 func TestMITMProxy_HTTPSInterception(t *testing.T) {
-	// このテストはHTTPS傍受の基本的な仕組みをテスト
+	// This test verifies the basic mechanism of HTTPS interception
 	proxy, err := NewMITMProxy(":0")
 	if err != nil {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// 証明書生成のテスト
+	// Test certificate generation
 	cert, err := proxy.generateCert("test.example.com:443")
 	if err != nil {
 		t.Fatalf("Failed to generate certificate: %v", err)
@@ -441,7 +441,7 @@ func TestMITMProxy_HTTPSInterception(t *testing.T) {
 		t.Fatal("Generated certificate is empty")
 	}
 
-	// TLS設定のテスト
+	// Test TLS configuration
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
 	}
@@ -459,7 +459,7 @@ func TestMITMProxy_ErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to create MITM proxy: %v", err)
 	}
 
-	// 存在しないホストでのHTTPリクエストテスト
+	// Test HTTP request with non-existent host
 	req := httptest.NewRequest("GET", "http://nonexistent-host.local/test", nil)
 	w := httptest.NewRecorder()
 
@@ -469,7 +469,7 @@ func TestMITMProxy_ErrorHandling(t *testing.T) {
 		t.Logf("Error handling test: got status %d", w.Code)
 	}
 
-	// 不正なホストでのCONNECTリクエストテスト
+	// Test CONNECT request with invalid host
 	connectReq := httptest.NewRequest("CONNECT", "https://nonexistent-host.local:443", nil)
 	connectReq.Host = "nonexistent-host.local:443"
 	connectW := httptest.NewRecorder()

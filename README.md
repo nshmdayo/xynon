@@ -13,6 +13,16 @@ An HTTP/HTTPS proxy server implemented in Go. Supports everything from simple fo
 
 ## Usage
 
+### Starting as a Mock Server
+
+```bash
+# Start mock server for testing
+go run app/main.go -mock -addr :9090
+
+# Or use Makefile
+make run-mock
+```
+
 ### Starting as a Basic Proxy Server
 
 ```bash
@@ -42,6 +52,7 @@ make run-mitm-modify
 - `-addr`: Server address (default: `:8080`)
 - `-mitm`: Start as MITM proxy
 - `-modify`: Enable request/response modification
+- `-mock`: Start as mock server
 - `-v`: Output detailed logs
 
 ### Running with Docker
@@ -121,7 +132,67 @@ make test-verbose
 
 # Run specific tests only
 go test ./app/proxy/ -run TestMITMProxy
+go test ./app/mock/ -run TestHealthEndpoint
 ```
+
+## Testing Proxy with Mock Server
+
+The project includes a built-in mock server for testing proxy functionality:
+
+### Quick Demo
+
+```bash
+# Run automated demo (basic proxy)
+./demo.sh basic
+
+# Run automated demo (MITM proxy)
+./demo.sh mitm
+
+# Run automated demo (MITM proxy with modification)
+./demo.sh mitm-modify
+```
+
+### Manual Testing
+
+1. **Start mock server**
+   ```bash
+   make run-mock
+   # Mock server starts on :9090 with endpoints:
+   # GET /health - Health check
+   # GET /api/users - Mock users API
+   # POST /api/echo - Echo request body
+   ```
+
+2. **Start proxy server (in another terminal)**
+   ```bash
+   # Basic proxy
+   make run
+   
+   # OR MITM proxy with modification
+   make run-mitm-modify
+   ```
+
+3. **Test proxy with mock server**
+   ```bash
+   # Health check via proxy
+   curl -x localhost:8080 http://localhost:9090/health
+   
+   # Users API via proxy
+   curl -x localhost:8080 http://localhost:9090/api/users
+   
+   # Echo API via proxy
+   curl -x localhost:8080 -X POST \
+     -H "Content-Type: application/json" \
+     -d '{"test":"data"}' \
+     http://localhost:9090/api/echo
+   ```
+
+### Mock Server Endpoints
+
+- `GET /health`: Returns server health status
+- `GET /api/users`: Returns mock user data
+- `POST /api/echo`: Echoes request data back
+- `GET /*`: Default handler with available endpoints
 
 ## Security Considerations
 

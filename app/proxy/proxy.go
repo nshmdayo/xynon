@@ -8,20 +8,20 @@ import (
 
 func Start(addr string) error {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// 転送先のURL
+		// Target URL
 		targetURL := "http://httpbin:80"
 
 		log.Println("addr: ", addr)
 		log.Println("Request from client: ", r)
 
-		// 新しいリクエストを作成
+		// Create new request
 		req, err := http.NewRequest(r.Method, targetURL, r.Body)
 		if err != nil {
 			http.Error(w, "Failed to create request", http.StatusInternalServerError)
 			return
 		}
 
-		// 元のリクエストのヘッダーをコピー
+		// Copy headers from original request
 		for key, values := range r.Header {
 			for _, value := range values {
 				req.Header.Add(key, value)
@@ -29,7 +29,7 @@ func Start(addr string) error {
 		}
 		log.Println("Request to target: ", req)
 
-		// クライアントを使ってリクエストを送信
+		// Send request using client
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -39,7 +39,7 @@ func Start(addr string) error {
 		log.Println("Response from target: ", resp)
 		defer resp.Body.Close()
 
-		// 転送先のレスポンスをクライアントに返す
+		// Return target response to client
 		for key, values := range resp.Header {
 			for _, value := range values {
 				w.Header().Add(key, value)

@@ -31,11 +31,34 @@ run-mitm:
 run-mitm-modify:
 	go run app/main.go -mitm -modify -v -addr :8080
 
+# Mock server commands
+run-mock:
+	go run app/main.go -mock -addr :9090
+
+# Test proxy with mock server (run these in separate terminals)
+test-proxy-mock:
+	@echo "Starting mock server on :9090 and proxy on :8080"
+	@echo "Run 'make run-mock' in one terminal and 'make run' in another terminal"
+	@echo "Then test with: curl -x localhost:8080 http://localhost:9090/health"
+
+# Quick test commands for proxy + mock
+demo-basic:
+	@echo "Testing basic proxy with mock server..."
+	@echo "1. Start mock server: make run-mock (in another terminal)"
+	@echo "2. Start proxy: make run (in another terminal)"
+	@echo "3. Test: curl -x localhost:8080 http://localhost:9090/health"
+
+demo-mitm:
+	@echo "Testing MITM proxy with mock server..."
+	@echo "1. Start mock server: make run-mock (in another terminal)"
+	@echo "2. Start MITM proxy: make run-mitm-modify (in another terminal)"
+	@echo "3. Test: curl -x localhost:8080 http://localhost:9090/health"
+
 test:
-	go test ./app/proxy/
+	go test ./app/proxy/ ./app/mock/
 
 test-verbose:
-	go test -v ./app/proxy/
+	go test -v ./app/proxy/ ./app/mock/
 
 test-short:
 	go test ./app/proxy/ -short
@@ -64,7 +87,10 @@ help:
 	@echo "  mitm            - Start MITM proxy with Docker"
 	@echo "  mitm-modify     - Start MITM proxy with modification enabled"
 	@echo "  stop-mitm       - Stop and cleanup MITM proxy"
-	@echo "  test            - Run tests"
+	@echo "  run-mock        - Run mock server locally"
+	@echo "  demo-basic      - Instructions for testing basic proxy with mock"
+	@echo "  demo-mitm       - Instructions for testing MITM proxy with mock"
+	@echo "  test-proxy-mock - Instructions for testing proxy with mock server"
 	@echo "  test-verbose    - Run tests with verbose output"
 	@echo "  test-short      - Run short tests only"
 	@echo "  test-bench      - Run benchmark tests"

@@ -7,30 +7,38 @@ import (
 	"regexp"
 	"strings"
 
+	"nproxy/app/mock"
 	"nproxy/app/proxy"
 )
 
 func main() {
 	var (
-		addr    = flag.String("addr", ":8080", "プロキシサーバーのアドレス")
-		mitm    = flag.Bool("mitm", false, "MITMプロキシとして起動")
-		modify  = flag.Bool("modify", false, "リクエスト・レスポンスの改ざんを有効にする")
-		verbose = flag.Bool("v", false, "詳細ログを出力")
+		addr    = flag.String("addr", ":8080", "proxy server address")
+		mitm    = flag.Bool("mitm", false, "start as MITM proxy")
+		modify  = flag.Bool("modify", false, "enable request/response modification")
+		verbose = flag.Bool("v", false, "output detailed logs")
+		mockSrv = flag.Bool("mock", false, "start as mock server")
 	)
 	flag.Parse()
 
-	if *mitm {
-		// MITM プロキシを起動
+	if *mockSrv {
+		// Start mock server
+		log.Printf("Starting mock server on %s", *addr)
+		if err := mock.Start(*addr); err != nil {
+			log.Fatalf("Failed to start mock server: %v", err)
+		}
+	} else if *mitm {
+		// Start MITM proxy
 		mitmProxy, err := proxy.NewMITMProxy(*addr)
 		if err != nil {
 			log.Fatalf("Failed to create MITM proxy: %v", err)
 		}
 
 		if *modify {
-			// リクエスト・レスポンス改ざんハンドラーを設定
+			// Set request/response modification handler
 			mitmProxy.SetHandler(createModificationHandler(*verbose))
 		} else if *verbose {
-			// ログ出力のみのハンドラーを設定
+			// Set logging-only handler
 			mitmProxy.SetHandler(createLoggingHandler())
 		}
 
@@ -39,7 +47,7 @@ func main() {
 			log.Fatalf("Failed to start MITM proxy: %v", err)
 		}
 	} else {
-		// 通常のプロキシを起動
+		// Start normal proxy
 		log.Printf("Starting simple proxy server on %s", *addr)
 		if err := proxy.Start(*addr); err != nil {
 			log.Fatalf("Failed to start proxy: %v", err)
@@ -47,7 +55,7 @@ func main() {
 	}
 }
 
-// createModificationHandler はリクエスト・レスポンス改ざん用のハンドラーを作成
+// createModificationHandler creates a handler for request/response modification
 func createModificationHandler(verbose bool) func(*http.Request, *http.Response) {
 	return func(req *http.Request, resp *http.Response) {
 		if req != nil {
@@ -56,11 +64,11 @@ func createModificationHandler(verbose bool) func(*http.Request, *http.Response)
 				log.Printf("Request Headers: %v", req.Header)
 			}
 
-			// リクエストヘッダーの改ざん例
+			// Example of request header modification
 			req.Header.Set("X-MITM-Proxy", "true")
 			req.Header.Set("User-Agent", "MITM-Proxy/1.0")
 
-			// 特定のパターンのリクエストを書き換え
+			// Modify requests for specific patterns
 			if strings.Contains(req.URL.Path, "/api/") {
 				req.Header.Set("X-API-Modified", "true")
 			}
@@ -72,16 +80,16 @@ func createModificationHandler(verbose bool) func(*http.Request, *http.Response)
 				log.Printf("Response Headers: %v", resp.Header)
 			}
 
-			// レスポンスヘッダーの改ざん例
+			// Example of response header modification
 			resp.Header.Set("X-MITM-Intercepted", "true")
 			resp.Header.Set("X-Proxy-Time", "2024-01-01")
 
-			// セキュリティヘッダーの追加
+			// Add security headers
 			resp.Header.Set("X-Content-Type-Options", "nosniff")
 			resp.Header.Set("X-Frame-Options", "DENY")
 			resp.Header.Set("X-XSS-Protection", "1; mode=block")
 
-			// Content-Typeが text/html の場合の処理
+			// Process text/html content type
 			if contentType := resp.Header.Get("Content-Type"); strings.Contains(contentType, "text/html") {
 				resp.Header.Set("X-HTML-Modified", "true")
 			}
@@ -89,33 +97,33 @@ func createModificationHandler(verbose bool) func(*http.Request, *http.Response)
 	}
 }
 
-// createLoggingHandler はログ出力専用のハンドラーを作成
+// createLoggingHandler creates a handler for logging only
 func createLoggingHandler() func(*http.Request, *http.Response) {
 	return func(req *http.Request, resp *http.Response) {
 		if req != nil {
 			log.Printf("📤 Request: %s %s", req.Method, req.URL.String())
 
-			// 機密情報をマスクしてヘッダーをログ出力
+			// Log headers while masking sensitive information
 			logHeaders(req.Header, "Request")
 		}
 
 		if resp != nil {
 			log.Printf("📥 Response: %d %s", resp.StatusCode, resp.Status)
 
-			// レスポンスヘッダーをログ出力
+			// Log response headers
 			logHeaders(resp.Header, "Response")
 		}
 	}
 }
 
-// logHeaders はヘッダー情報を安全にログ出力する
+// logHeaders safely logs header information
 func logHeaders(headers http.Header, prefix string) {
 	sensitiveHeaders := []string{
 		"Authorization", "Cookie", "Set-Cookie", "X-API-Key", "X-Auth-Token",
 	}
 
 	for key, values := range headers {
-		// 機密情報を含むヘッダーかチェック
+		// Check if header contains sensitive information
 		isSensitive := false
 		for _, sensitive := range sensitiveHeaders {
 			if matched, _ := regexp.MatchString("(?i)"+sensitive, key); matched {

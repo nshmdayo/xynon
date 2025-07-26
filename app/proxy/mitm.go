@@ -19,16 +19,16 @@ import (
 	"time"
 )
 
-// MITMProxy は MITM プロキシサーバーの設定を保持する構造体
+// MITMProxy is a structure that holds the configuration for MITM proxy server
 type MITMProxy struct {
 	CA      *x509.Certificate
 	CAKey   *rsa.PrivateKey
 	CertDir string
 	Addr    string
-	Handler func(*http.Request, *http.Response) // リクエスト・レスポンス改ざん用ハンドラー
+	Handler func(*http.Request, *http.Response) // Handler for request/response modification
 }
 
-// NewMITMProxy は新しい MITM プロキシを作成する
+// NewMITMProxy creates a new MITM proxy
 func NewMITMProxy(addr string) (*MITMProxy, error) {
 	ca, caKey, err := generateCA()
 	if err != nil {
@@ -43,9 +43,9 @@ func NewMITMProxy(addr string) (*MITMProxy, error) {
 	}, nil
 }
 
-// Start は MITM プロキシサーバーを開始する
+// Start starts the MITM proxy server
 func (m *MITMProxy) Start() error {
-	// 証明書ディレクトリを作成
+	// Create certificate directory
 	if err := os.MkdirAll(m.CertDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cert directory: %v", err)
 	}

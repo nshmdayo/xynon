@@ -1,4 +1,4 @@
-# ステージ１
+# Stage 1
 FROM golang:1.23-alpine3.20 AS go
 WORKDIR /
 COPY go.mod ./
@@ -7,7 +7,7 @@ WORKDIR /app
 COPY app/ ./
 RUN go build -o main /app/main.go
 
-# ステージ２
+# Stage 2
 FROM alpine:3.20
 WORKDIR /app
 COPY --from=go /app/main .
