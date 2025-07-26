@@ -2,6 +2,7 @@ package mock
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -116,12 +117,24 @@ func (m *MockServer) handleEcho(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read request body
-	body := make([]byte, r.ContentLength)
-	_, err := r.Body.Read(body)
-	if err != nil && err.Error() != "EOF" {
-		log.Printf("Error reading request body: %v", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
+	var body []byte
+	var err error
+	if r.ContentLength > 0 {
+		body = make([]byte, r.ContentLength)
+		_, err = r.Body.Read(body)
+		if err != nil && err.Error() != "EOF" {
+			log.Printf("Error reading request body: %v", err)
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+	} else {
+		// Use io.ReadAll for unknown content length or when ContentLength is not set properly
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error reading request body: %v", err)
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
 	}
 	defer r.Body.Close()
 
