@@ -1,0 +1,6 @@
+listen: ":8080"
+
+plugins:
+  dir: "./examples/plugins"
+  chain:
+    - name: add-header
