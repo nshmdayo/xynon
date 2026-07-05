@@ -42,9 +42,8 @@ Xynon provides built-in subcommands to manage plugins seamlessly:
 ## 3. ABI and Lifecycle Actions
 During the execution of `OnRequest` and `OnResponse`, plugins can dictate the proxy's next step by returning an `Action` code:
 - `ActionContinue`: Proceed to the next plugin in the chain.
-- `ActionStop`: Stop executing the current chain phase, but continue processing the HTTP request/response.
-
-Plugins can also explicitly trigger a **Short-Circuit** during `OnRequest`, immediately halting further plugin execution and proxy forwarding, returning a custom HTTP status code directly to the client.
+- `ActionShortCircuit`: Stop the chain; host uses the short-circuit response (halting further plugin execution and proxy forwarding).
+- `ActionError`: Plugin encountered an error; host skips this plugin for this request.
 
 ## 4. Development Constraints
 - `CGO_ENABLED=0` must be maintained for the proxy binary.

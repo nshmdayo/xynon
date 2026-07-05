@@ -42,7 +42,7 @@ func (r *Runtime) Close(ctx context.Context) {
 }
 
 // LoadWasmHandler compiles and instantiates the WASM file at path, registers host
-// functions, validates exports, and returns a ready Plugin.
+// functions, validates exports, and returns a ready WasmHandler.
 func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits) (*WasmHandler, error) {
 	wasmBytes, err := os.ReadFile(path)
 	if err != nil {

@@ -10,7 +10,9 @@ import (
 )
 
 const (
+	// PluginTypeWasm identifies a plugin executed in-process via WebAssembly.
 	PluginTypeWasm = "wasm"
+	// PluginTypeRPC identifies a plugin executed out-of-process via hashicorp/go-plugin.
 	PluginTypeRPC  = "rpc"
 )
 
