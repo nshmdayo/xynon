@@ -1,101 +1,32 @@
-# Agent Rules and Workspace Guidelines
+# Agent Landing Page & Repository Index
 
-This document outlines the project profile, development workflows, coding standards, and agent constraints for the **Xynon** repository. Any AI coding assistant (like Antigravity) must strictly adhere to these rules when working in this workspace.
+Welcome, Agent. This file serves as your entry point and map for navigating this repository. To conserve context tokens and prevent errors, project requirements and technical designs have been split into modular files. 
 
----
-
-## 1. Project Profile & Architecture
-
-The detailed system architecture, technology stack, and component interactions are documented in **`spec/architecture.md`**.
-You MUST refer to `spec/architecture.md` when you need to understand the core proxy logic, WASM/RPC plugin boundaries, or execution models.
+Before executing tasks, read the specific files relevant to your current scope.
 
 ---
 
-## 2. Directory Layout
+## Rpository Documentation Map
 
-The workspace is organized as follows:
-*   `cmd/xynon/`: Proxy CLI entrypoint (`main.go`).
-*   `internal/config/`: Configuration definitions, loader, validator, and serialiser.
-*   `internal/plugin/`: Shared `Handler` interface, WASM runtime loader (`wazero`), and RPC client loader (`hashicorp/go-plugin`).
-*   `internal/plugin/abi/`: ABI contract definitions (e.g., versioning, host/guest exports/imports).
-*   `internal/plugincli/`: Subcommand handlers for plugin CLI operations (`list`, `add`, `remove`, `build`).
-*   `internal/proxy/`: Forward HTTP proxy server logic, plugin chain registration, and hot-reload watcher.
-*   `examples/plugins/`: Sample Go plugin sources (e.g., `add-header`) compile-ready for TinyGo WASM.
-*   `examples/config.yaml`: Default configuration blueprint for running the proxy and setting the plugin chain.
-*   `spec/`: Declarative specifications defining required behaviors for features.
+### 1. Requirements & Features
+If you are modifying, adding, or debugging features, refer to the individual Product Requirement Documents (PRDs):
+*   **Proxy Engine:** `docs/requirements/PRD-proxy-engine.md`
+*   **Hot-Reloading:** `docs/requirements/PRD-hot-reloading.md`
+*   **WASM Plugins:** `docs/requirements/PRD-wasm-plugins.md`
+*   **RPC Plugins:** `docs/requirements/PRD-rpc-plugins.md`
+*   **CLI Tooling:** `docs/requirements/PRD-cli-tooling.md`
+*   **Configuration:** `docs/requirements/PRD-configuration.md`
 
----
-
-## 3. Development Commands
-
-The project defines helper operations in a `Makefile`. Below are the exact commands to run:
-
-### Build Commands
-*   **Build Proxy Host Binary**:
-    ```bash
-    make build
-    ```
-    *(Direct command: `CGO_ENABLED=0 go build -o bin/xynon ./cmd/xynon`)*
-*   **Build WASM Plugins**:
-    ```bash
-    make plugins
-    ```
-    *(Compiles all Go files under `examples/plugins/` using TinyGo targeting WASM)*
-
-### Execution Commands
-*   **Start Forward Proxy**:
-    ```bash
-    ./bin/xynon -config examples/config.yaml
-    ```
-    *Optionally disable hot reloading:*
-    ```bash
-    ./bin/xynon -config examples/config.yaml -no-hot-reload
-    ```
-*   **Plugin CLI Management**:
-    *   **List Plugins**: `./bin/xynon plugin list -config examples/config.yaml`
-    *   **Add Plugin**: `./bin/xynon plugin add -config examples/config.yaml ./path/to/plugin.wasm`
-    *   **Remove Plugin**: `./bin/xynon plugin remove -config examples/config.yaml plugin-name`
-    *   **Build Plugin**: `./bin/xynon plugin build -config examples/config.yaml ./examples/plugins/plugin-name`
-
-### Test & Maintenance Commands
-*   **Run Test Suite**:
-    ```bash
-    make test
-    ```
-    *(Direct command: `go test ./...`)*
-*   **Clean Build Artifacts**:
-    ```bash
-    make clean
-    ```
+### 2. Architecture & Design
+If you need to understand the codebase structure, system schemas, or system contracts:
+*   **System Architecture:** `docs/architecture/system-design.md` — Core infrastructure layout, services, and execution models.
+*   **API Specification:** `docs/architecture/api-spec.md` — Contract definitions, lifecycle actions, and ABI boundaries.
 
 ---
 
-## 4. Coding Standards
+## Operational Instructions
 
-AI agents must write code that is clean, readable, and consistent with the existing codebase:
+1. **Context Management:** Do not read all documentation files simultaneously. Only read the specific file(s) listed above that map to your current issue or ticket.
+2. **Updating Docs:** If your code changes alter an API layout or introduce a new feature, you are responsible for updating the corresponding file under `docs/` as part of your pull request. Do not append large blocks of text to this index file.
+3. **Execution Context:** For framework-specific setup, linting rules, and deployment workflows, check the configuration files in `.github/agent-instructions/` if available.
 
-### Naming Conventions
-*   **Go packages**: All package names should be lowercase single words (e.g., `config`, `plugin`, `proxy`). Avoid underscores or mixed capitalization.
-*   **Go types and functions**: Standard Go `CamelCase` rules. Exported types, fields, and functions must start with an uppercase letter; private ones must be lowercase.
-*   **YAML tags**: Struct fields in configuration files should have snake_case tags, e.g., `yaml:"timeout_ms"`.
-*   **WASM exports**: Exported functions meant to be matched by the guest/plugin ABI must use snake_case matching the ABI expectations (e.g., `xynon_abi_version`, `on_request`).
-
-### Coding Best Practices
-*   **Gofmt**: All Go files must pass standard `gofmt` (tab indented).
-*   **Error Wrapping**: Always use standard error wrapping with `%w` when errors bubble up (e.g., `fmt.Errorf("config: cannot read %q: %w", path, err)`).
-*   **Logging**: Use `log/slog` for structured logging, using camelCase for attributes keys.
-*   **Concurrency Safety**: Access to shared mutable states (e.g., the plugin Chain registry or configurations during hot reload) must be synchronized using Go's concurrent primitives (`sync.RWMutex`, `atomic.Pointer`, or channel-based synchronization). Refer to `internal/proxy/chain.go` for implementation references.
-
----
-
-## 5. Agent Constraints
-
-When modifying the codebase, the following rules are **strictly mandatory**:
-
-1.  **Preserve Coding Patterns**: Follow existing structure patterns, particularly the separation of CLI packages (`internal/plugincli`) and execution logic. Do not bypass or reimplement logic defined in `internal/plugin/abi`.
-2.  **Maintain Documentation Integrity**: Preserve all existing comments and docstrings. Do not remove or alter comments unless requested or directly updating the surrounding code.
-3.  **WASM ABI Protection**: Do not change host/guest function signatures or ABI behaviors (`internal/plugin/abi/abi.go`) without explicitly incrementing `CurrentVersion` and ensuring plugins are rebuilt. Any change must maintain compatibility or gracefully reject outdated plugins.
-4.  **No CGO**: Keep `CGO_ENABLED=0` to ensure static linking and portability of the generated `xynon` binary.
-5.  **Plugin Build Constraints**: WASM plugins must only be built with TinyGo under Go 1.23 environment, avoiding imports of packages that use CGO or dependencies incompatible with WebAssembly targets. RPC plugins can use standard Go, but must implement the expected `hashicorp/go-plugin` interfaces.
-6.  **Run Tests Before Finalizing**: Always run `go test ./...` to verify no regression is introduced.
-7.  **Auto-Test Hook (AI Behavior)**: Whenever you (the AI agent) implement new features, fix bugs, or modify `.go` files, you MUST automatically execute `make test` via the `run_command` tool before ending your turn. If the tests fail, you must attempt to fix the code and re-run the tests. Do not wait for the user to prompt you to run tests.
