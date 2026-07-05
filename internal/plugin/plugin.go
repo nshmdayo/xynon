@@ -33,12 +33,18 @@ func (p *WasmHandler) Close(ctx context.Context) error {
 // OnRequest calls the plugin's on_request hook with the given request headers.
 // Returns the action and whether a short-circuit was requested (with status code).
 func (p *WasmHandler) OnRequest(ctx context.Context, header http.Header) (abi.Action, bool, int, error) {
+	if header == nil {
+		header = make(http.Header)
+	}
 	hd := &HandleData{Kind: HandleRequest, Header: header}
 	return p.callHook(ctx, abi.ExportOnRequest, hd)
 }
 
 // OnResponse calls the plugin's on_response hook with the given response headers.
 func (p *WasmHandler) OnResponse(ctx context.Context, header http.Header, statusCode int) (abi.Action, bool, int, error) {
+	if header == nil {
+		header = make(http.Header)
+	}
 	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode}
 	return p.callHook(ctx, abi.ExportOnResponse, hd)
 }
