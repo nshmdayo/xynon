@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nshmdayo/xynon/internal/config"
 	pluginpkg "github.com/nshmdayo/xynon/internal/plugin"
 )
 
@@ -42,7 +43,7 @@ func TestHotReload_AddPlugin(t *testing.T) {
 	reg := &ChainRegistry{}
 	reg.Store(NewChain(nil))
 
-	entries := []pluginpkg.ChainEntry{{Name: "add-header", Path: wasmPath}}
+	entries := []pluginpkg.ChainEntry{{Name: "add-header", Type: config.PluginTypeWasm, Path: wasmPath}}
 	cfg := WatcherConfig{
 		PluginDir: dir,
 		Entries:   entries,
@@ -83,7 +84,7 @@ func TestHotReload_InvalidFile_KeepsChain(t *testing.T) {
 	original := NewChain(nil)
 	reg.Store(original)
 
-	entries := []pluginpkg.ChainEntry{{Name: "add-header", Path: wasmPath}}
+	entries := []pluginpkg.ChainEntry{{Name: "add-header", Type: config.PluginTypeWasm, Path: wasmPath}}
 	cfg := WatcherConfig{
 		PluginDir: dir,
 		Entries:   entries,

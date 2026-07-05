@@ -17,8 +17,10 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
 		var err error
 		if e.Type == config.PluginTypeRPC {
 			p, err = LoadRpcPlugin(ctx, e.Name, e.Path)
-		} else {
+		} else if e.Type == config.PluginTypeWasm {
 			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits)
+		} else {
+			err = fmt.Errorf("unknown plugin type %q", e.Type)
 		}
 		if err != nil {
 			// Close already loaded plugins before returning.
