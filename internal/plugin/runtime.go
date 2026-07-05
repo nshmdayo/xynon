@@ -32,6 +32,28 @@ func NewRuntime(ctx context.Context) (*Runtime, error) {
 		return nil, fmt.Errorf("runtime: instantiate WASI: %w", err)
 	}
 
+	// Register host functions.
+	if _, err := rt.NewHostModuleBuilder("env").
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostGetHeader), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnGetHeader).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostSetHeader), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnSetHeader).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostSetStatus), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnSetStatus).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostShortCircuit), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnShortCircuit).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostLog), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnLog).
+		Instantiate(ctx); err != nil {
+		_ = rt.Close(ctx)
+		return nil, fmt.Errorf("runtime: instantiate env: %w", err)
+	}
+
 	return &Runtime{rt: rt, cache: cache}, nil
 }
 
@@ -49,28 +71,7 @@ func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits
 		return nil, fmt.Errorf("plugin %q: read file: %w", name, err)
 	}
 
-	// Register host functions. Only instantiate if not already present.
-	if r.rt.Module("env") == nil {
-		if _, err := r.rt.NewHostModuleBuilder("env").
-			NewFunctionBuilder().
-			WithGoModuleFunction(api.GoModuleFunc(hostGetHeader), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
-			Export(abi.FnGetHeader).
-			NewFunctionBuilder().
-			WithGoModuleFunction(api.GoModuleFunc(hostSetHeader), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
-			Export(abi.FnSetHeader).
-			NewFunctionBuilder().
-			WithGoModuleFunction(api.GoModuleFunc(hostSetStatus), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
-			Export(abi.FnSetStatus).
-			NewFunctionBuilder().
-			WithGoModuleFunction(api.GoModuleFunc(hostShortCircuit), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
-			Export(abi.FnShortCircuit).
-			NewFunctionBuilder().
-			WithGoModuleFunction(api.GoModuleFunc(hostLog), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
-			Export(abi.FnLog).
-			Instantiate(ctx); err != nil {
-			return nil, fmt.Errorf("plugin %q: register host functions: %w", name, err)
-		}
-	}
+
 
 	compiled, err := r.rt.CompileModule(ctx, wasmBytes)
 	if err != nil {
