@@ -9,11 +9,11 @@ import (
 // Chain is an ordered, immutable list of loaded plugins for a single
 // generation. It is safe to hold a reference across a hot-reload boundary.
 type Chain struct {
-	plugins []*plugin.Plugin
+	plugins []plugin.Handler
 }
 
 // Plugins returns the ordered slice of plugins in this chain.
-func (c *Chain) Plugins() []*plugin.Plugin {
+func (c *Chain) Plugins() []plugin.Handler {
 	if c == nil {
 		return nil
 	}
@@ -21,7 +21,7 @@ func (c *Chain) Plugins() []*plugin.Plugin {
 }
 
 // NewChain constructs a Chain from an ordered slice of plugins.
-func NewChain(plugins []*plugin.Plugin) *Chain {
+func NewChain(plugins []plugin.Handler) *Chain {
 	return &Chain{plugins: plugins}
 }
 

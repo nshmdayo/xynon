@@ -6,12 +6,18 @@ import (
 	"time"
 )
 
-// LoadChain loads WASM plugins in the given name-to-path order and returns
+// LoadChain loads WASM and RPC plugins in the given order and returns
 // the ordered slice, or an error if any plugin fails to load.
-func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Limits) ([]*Plugin, error) {
-	plugins := make([]*Plugin, 0, len(entries))
+func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Limits) ([]Handler, error) {
+	plugins := make([]Handler, 0, len(entries))
 	for _, e := range entries {
-		p, err := rt.LoadPlugin(ctx, e.Name, e.Path, limits)
+		var p Handler
+		var err error
+		if e.Type == "rpc" {
+			p, err = LoadRpcPlugin(ctx, e.Name, e.Path)
+		} else {
+			p, err = rt.LoadPlugin(ctx, e.Name, e.Path, limits)
+		}
 		if err != nil {
 			// Close already loaded plugins before returning.
 			for _, already := range plugins {
@@ -24,9 +30,10 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
 	return plugins, nil
 }
 
-// ChainEntry pairs a plugin name with its WASM file path.
+// ChainEntry pairs a plugin name with its execution type and file path.
 type ChainEntry struct {
 	Name string
+	Type string
 	Path string
 }
 

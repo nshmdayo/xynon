@@ -26,8 +26,8 @@ type Plugin struct {
 func (p *Plugin) Name() string { return p.name }
 
 // Close releases the plugin's WASM module.
-func (p *Plugin) Close(ctx context.Context) {
-	_ = p.mod.Close(ctx)
+func (p *Plugin) Close(ctx context.Context) error {
+	return p.mod.Close(ctx)
 }
 
 // OnRequest calls the plugin's on_request hook with the given request headers.

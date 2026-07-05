@@ -50,9 +50,18 @@ func main() {
 	// Build chain entries from config.
 	entries := make([]plugin.ChainEntry, 0, len(cfg.Plugins.Chain))
 	for _, e := range cfg.Plugins.Chain {
+		typ := e.Type
+		if typ == "" {
+			typ = "wasm"
+		}
+		path := filepath.Join(cfg.Plugins.Dir, e.Name)
+		if typ == "wasm" {
+			path += ".wasm"
+		}
 		entries = append(entries, plugin.ChainEntry{
 			Name: e.Name,
-			Path: filepath.Join(cfg.Plugins.Dir, e.Name+".wasm"),
+			Type: typ,
+			Path: path,
 		})
 	}
 
