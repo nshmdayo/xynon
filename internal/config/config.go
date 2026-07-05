@@ -9,10 +9,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// PluginTypeWasm identifies a plugin executed in-process via WebAssembly.
+	PluginTypeWasm = "wasm"
+	// PluginTypeRPC identifies a plugin executed out-of-process via hashicorp/go-plugin.
+	PluginTypeRPC  = "rpc"
+)
+
 // Config holds the full proxy configuration.
 type Config struct {
-	Listen  string         `yaml:"listen"`
-	Plugins PluginsConfig  `yaml:"plugins"`
+	Listen  string        `yaml:"listen"`
+	Plugins PluginsConfig `yaml:"plugins"`
 }
 
 // PluginsConfig holds plugin directory and the ordered chain.

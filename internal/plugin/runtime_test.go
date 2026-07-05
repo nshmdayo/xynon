@@ -16,7 +16,7 @@ const (
 	noExportWasm = "testdata/no_exports/plugin.wasm"
 )
 
-func TestLoadPlugin_Valid(t *testing.T) {
+func TestLoadWasmHandler_Valid(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestLoadPlugin_Valid(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	p, err := rt.LoadPlugin(ctx, "valid", validWasm, Limits{})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestLoadPlugin_Valid(t *testing.T) {
 	}
 }
 
-func TestLoadPlugin_ABIMismatch(t *testing.T) {
+func TestLoadWasmHandler_ABIMismatch(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func TestLoadPlugin_ABIMismatch(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	_, err = rt.LoadPlugin(ctx, "bad_abi", badABIWasm, Limits{})
+	_, err = rt.LoadWasmHandler(ctx, "bad_abi", badABIWasm, Limits{})
 	if err == nil {
 		t.Fatal("expected ABI version error")
 	}
@@ -53,7 +53,7 @@ func TestLoadPlugin_ABIMismatch(t *testing.T) {
 	}
 }
 
-func TestLoadPlugin_MissingExport(t *testing.T) {
+func TestLoadWasmHandler_MissingExport(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
 	if err != nil {
@@ -61,7 +61,7 @@ func TestLoadPlugin_MissingExport(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	_, err = rt.LoadPlugin(ctx, "no_exports", noExportWasm, Limits{})
+	_, err = rt.LoadWasmHandler(ctx, "no_exports", noExportWasm, Limits{})
 	if err == nil {
 		t.Fatal("expected missing export error")
 	}
@@ -79,7 +79,7 @@ func TestOnRequest_ContinueAction(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	p, err := rt.LoadPlugin(ctx, "valid", validWasm, Limits{})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestOnRequest_Timeout(t *testing.T) {
 	cancelCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	cancel()
 
-	p, err := rt.LoadPlugin(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond})
 	if err != nil {
 		t.Fatal(err)
 	}

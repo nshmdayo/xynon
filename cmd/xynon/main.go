@@ -52,10 +52,10 @@ func main() {
 	for _, e := range cfg.Plugins.Chain {
 		typ := e.Type
 		if typ == "" {
-			typ = "wasm"
+			typ = config.PluginTypeWasm
 		}
 		path := filepath.Join(cfg.Plugins.Dir, e.Name)
-		if typ == "wasm" {
+		if typ == config.PluginTypeWasm {
 			path += ".wasm"
 		}
 		entries = append(entries, plugin.ChainEntry{

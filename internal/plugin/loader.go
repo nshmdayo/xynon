@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/nshmdayo/xynon/internal/config"
 )
 
 // LoadChain loads WASM and RPC plugins in the given order and returns
@@ -13,10 +15,12 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
 	for _, e := range entries {
 		var p Handler
 		var err error
-		if e.Type == "rpc" {
+		if e.Type == config.PluginTypeRPC {
 			p, err = LoadRpcPlugin(ctx, e.Name, e.Path)
+		} else if e.Type == config.PluginTypeWasm {
+			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits)
 		} else {
-			p, err = rt.LoadPlugin(ctx, e.Name, e.Path, limits)
+			err = fmt.Errorf("unknown plugin type %q", e.Type)
 		}
 		if err != nil {
 			// Close already loaded plugins before returning.
