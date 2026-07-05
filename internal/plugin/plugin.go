@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tetratelabs/wazero/api"
 	"github.com/nshmdayo/xynon/internal/plugin/abi"
+	"github.com/tetratelabs/wazero/api"
 )
 
 // Limits configures sandbox constraints for a plugin.
@@ -16,34 +16,34 @@ type Limits struct {
 }
 
 // Plugin is a loaded, ready-to-call WASM plugin instance.
-type Plugin struct {
+type WasmHandler struct {
 	name   string
 	mod    api.Module
 	limits Limits
 }
 
 // Name returns the plugin's declared name.
-func (p *Plugin) Name() string { return p.name }
+func (p *WasmHandler) Name() string { return p.name }
 
 // Close releases the plugin's WASM module.
-func (p *Plugin) Close(ctx context.Context) error {
+func (p *WasmHandler) Close(ctx context.Context) error {
 	return p.mod.Close(ctx)
 }
 
 // OnRequest calls the plugin's on_request hook with the given request headers.
 // Returns the action and whether a short-circuit was requested (with status code).
-func (p *Plugin) OnRequest(ctx context.Context, header http.Header) (abi.Action, bool, int, error) {
+func (p *WasmHandler) OnRequest(ctx context.Context, header http.Header) (abi.Action, bool, int, error) {
 	hd := &HandleData{Kind: HandleRequest, Header: header}
 	return p.callHook(ctx, abi.ExportOnRequest, hd)
 }
 
 // OnResponse calls the plugin's on_response hook with the given response headers.
-func (p *Plugin) OnResponse(ctx context.Context, header http.Header, statusCode int) (abi.Action, bool, int, error) {
+func (p *WasmHandler) OnResponse(ctx context.Context, header http.Header, statusCode int) (abi.Action, bool, int, error) {
 	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode}
 	return p.callHook(ctx, abi.ExportOnResponse, hd)
 }
 
-func (p *Plugin) callHook(ctx context.Context, export string, hd *HandleData) (abi.Action, bool, int, error) {
+func (p *WasmHandler) callHook(ctx context.Context, export string, hd *HandleData) (abi.Action, bool, int, error) {
 	if p.limits.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, p.limits.Timeout)

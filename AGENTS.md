@@ -4,20 +4,10 @@ This document outlines the project profile, development workflows, coding standa
 
 ---
 
-## 1. Project Profile
+## 1. Project Profile & Architecture
 
-### Technology Stack
-*   **Primary Language**: Go (v1.26.1+)
-*   **WASM Plugin Language**: Go compiled via **TinyGo** (v0.40.1 or compatible, using Go 1.23 for compilation compatibility)
-*   **RPC Plugin Language**: Any language supporting `hashicorp/go-plugin` (typically standard Go 1.23+), running out-of-process.
-*   **Compilation Target**: WebAssembly (`wasm` / `wasip1`) for WASM plugins, native executables for RPC plugins.
-
-### Architecture & Key Libraries
-*   **WebAssembly Runtime**: `github.com/tetratelabs/wazero v1.11.0` (Zero-dependency WebAssembly runtime for Go).
-*   **RPC Plugin Runtime**: `github.com/hashicorp/go-plugin v1.8.0` (Manages out-of-process plugin lifecycles and communications).
-*   **File System Monitoring**: `github.com/fsnotify/fsnotify v1.9.0` (Used for hot-reloading WebAssembly plugins upon file changes).
-*   **Configuration File Parser**: `gopkg.in/yaml.v3 v3.0.1` (Handles loading/saving `config.yaml`).
-*   **Structured Logging**: Standard Go `log/slog` library.
+The detailed system architecture, technology stack, and component interactions are documented in **`spec/architecture.md`**.
+You MUST refer to `spec/architecture.md` when you need to understand the core proxy logic, WASM/RPC plugin boundaries, or execution models.
 
 ---
 
@@ -32,7 +22,7 @@ The workspace is organized as follows:
 *   `internal/proxy/`: Forward HTTP proxy server logic, plugin chain registration, and hot-reload watcher.
 *   `examples/plugins/`: Sample Go plugin sources (e.g., `add-header`) compile-ready for TinyGo WASM.
 *   `examples/config.yaml`: Default configuration blueprint for running the proxy and setting the plugin chain.
-*   `openspec/`: Declarative specifications defining required behaviors for features.
+*   `spec/`: Declarative specifications defining required behaviors for features.
 
 ---
 
@@ -108,3 +98,4 @@ When modifying the codebase, the following rules are **strictly mandatory**:
 4.  **No CGO**: Keep `CGO_ENABLED=0` to ensure static linking and portability of the generated `xynon` binary.
 5.  **Plugin Build Constraints**: WASM plugins must only be built with TinyGo under Go 1.23 environment, avoiding imports of packages that use CGO or dependencies incompatible with WebAssembly targets. RPC plugins can use standard Go, but must implement the expected `hashicorp/go-plugin` interfaces.
 6.  **Run Tests Before Finalizing**: Always run `go test ./...` to verify no regression is introduced.
+7.  **Auto-Test Hook (AI Behavior)**: Whenever you (the AI agent) implement new features, fix bugs, or modify `.go` files, you MUST automatically execute `make test` via the `run_command` tool before ending your turn. If the tests fail, you must attempt to fix the code and re-run the tests. Do not wait for the user to prompt you to run tests.

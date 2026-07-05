@@ -9,10 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	PluginTypeWasm = "wasm"
+	PluginTypeRPC  = "rpc"
+)
+
 // Config holds the full proxy configuration.
 type Config struct {
-	Listen  string         `yaml:"listen"`
-	Plugins PluginsConfig  `yaml:"plugins"`
+	Listen  string        `yaml:"listen"`
+	Plugins PluginsConfig `yaml:"plugins"`
 }
 
 // PluginsConfig holds plugin directory and the ordered chain.

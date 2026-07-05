@@ -64,8 +64,8 @@ func resolveTinyGo() (string, error) {
 	p, err := exec.LookPath("tinygo")
 	if err != nil {
 		return "", fmt.Errorf(
-			"plugin build: tinygo not found in PATH\n"+
-				"Install TinyGo from https://tinygo.org/getting-started/install/ "+
+			"plugin build: tinygo not found in PATH\n" +
+				"Install TinyGo from https://tinygo.org/getting-started/install/ " +
 				"or set the TINYGO environment variable to its binary path",
 		)
 	}
