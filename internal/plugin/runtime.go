@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"os"
@@ -49,6 +51,9 @@ func NewRuntime(ctx context.Context) (*Runtime, error) {
 		NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(hostLog), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
 		Export(abi.FnLog).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostComputeHMAC256), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnComputeHMAC256).
 		Instantiate(ctx); err != nil {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("runtime: instantiate env: %w", err)
@@ -192,6 +197,26 @@ func hostLog(_ context.Context, mod api.Module, stack []uint64) {
 	msg := readString(mod.Memory(), msgPtr, msgLen)
 	slog.Info("[plugin]", "msg", msg)
 	stack[0] = 0
+}
+
+func hostComputeHMAC256(_ context.Context, mod api.Module, stack []uint64) {
+	msgPtr, msgLen, keyPtr, keyLen, outPtr, outCap :=
+		uint32(stack[0]), uint32(stack[1]), uint32(stack[2]), uint32(stack[3]), uint32(stack[4]), uint32(stack[5])
+
+	if outCap < 32 {
+		stack[0] = 0xFFFFFFFF
+		return
+	}
+
+	msg := readString(mod.Memory(), msgPtr, msgLen)
+	key := readString(mod.Memory(), keyPtr, keyLen)
+
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(msg))
+	sum := mac.Sum(nil)
+
+	mod.Memory().Write(outPtr, sum)
+	stack[0] = 32
 }
 
 func readString(mem api.Memory, ptr, length uint32) string {

@@ -73,7 +73,7 @@ func TestProxy_Passthrough(t *testing.T) {
 
 	reg := &ChainRegistry{}
 	reg.Store(NewChain(nil)) // empty chain → passthrough
-	p := New(reg)
+	p := New(reg, false)
 	p.transport = http.DefaultTransport
 
 	req := httptest.NewRequest(http.MethodGet, upstream.URL, nil)
@@ -113,4 +113,31 @@ func TestChainRegistry_AtomicSwap(t *testing.T) {
 
 func buildFakeChain(_ []fakeRunner) *Chain {
 	return NewChain(nil)
+}
+
+func TestProxy_HandleTunnel_SSRF(t *testing.T) {
+	reg := &ChainRegistry{}
+	reg.Store(NewChain(nil))
+	
+	// Test blocked local access
+	p := New(reg, false)
+	req := httptest.NewRequest(http.MethodConnect, "http://127.0.0.1:80", nil)
+	req.Host = "127.0.0.1:80" // Correctly set r.Host for CONNECT
+	rr := httptest.NewRecorder()
+	p.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want %d (Forbidden) for 127.0.0.1", rr.Code, http.StatusForbidden)
+	}
+
+	// Test allowed local access
+	pAllowed := New(reg, true)
+	reqAllowed := httptest.NewRequest(http.MethodConnect, "http://127.0.0.1:12345", nil)
+	reqAllowed.Host = "127.0.0.1:12345"
+	rrAllowed := httptest.NewRecorder()
+	pAllowed.ServeHTTP(rrAllowed, reqAllowed)
+
+	if rrAllowed.Code == http.StatusForbidden {
+		t.Errorf("status = %d, want something other than 403 when local network is allowed", rrAllowed.Code)
+	}
 }

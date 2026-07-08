@@ -13,15 +13,17 @@ import (
 
 // Proxy is an HTTP forward proxy that dispatches to a plugin chain.
 type Proxy struct {
-	registry  *ChainRegistry
-	transport http.RoundTripper
+	registry          *ChainRegistry
+	transport         http.RoundTripper
+	allowLocalNetwork bool
 }
 
 // New constructs a Proxy using the given chain registry.
-func New(registry *ChainRegistry) *Proxy {
+func New(registry *ChainRegistry, allowLocalNetwork bool) *Proxy {
 	return &Proxy{
-		registry:  registry,
-		transport: http.DefaultTransport,
+		registry:          registry,
+		transport:         http.DefaultTransport,
+		allowLocalNetwork: allowLocalNetwork,
 	}
 }
 
@@ -37,6 +39,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Snapshot the current plugin chain once for this request.
 	chain := p.registry.Load()
+
+	// Clone the request because we will mutate its headers and URI,
+	// and http.RoundTripper requires the original request to remain unmodified.
+	r = r.Clone(r.Context())
 
 	// Run on_request hooks.
 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
@@ -67,6 +73,36 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
+	// Snapshot the current plugin chain for this request.
+	chain := p.registry.Load()
+
+	// Clone the request because plugins might mutate its headers.
+	r = r.Clone(r.Context())
+
+	// Run on_request hooks for CONNECT requests.
+	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
+	if action == abi.ActionShortCircuit || shortCircuit {
+		http.Error(w, http.StatusText(scStatus), scStatus)
+		return
+	}
+
+	if !p.allowLocalNetwork {
+		host, _, err := net.SplitHostPort(r.Host)
+		if err != nil {
+			host = r.Host
+		}
+
+		ips, err := net.DefaultResolver.LookupIP(r.Context(), "ip", host)
+		if err == nil {
+			for _, ip := range ips {
+				if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+					http.Error(w, "access to private/local network is forbidden", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
+
 	dst, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
 	if err != nil {
 		http.Error(w, "cannot connect to upstream: "+err.Error(), http.StatusBadGateway)

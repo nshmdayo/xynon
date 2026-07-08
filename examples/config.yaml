@@ -1,6 +1,8 @@
 listen: ":8080"
+allow_local_network: true
 
 plugins:
   dir: "./examples/plugins"
   chain:
+    - name: auth
     - name: add-header

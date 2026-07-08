@@ -41,7 +41,7 @@ The project defines helper operations in a `Makefile`. Below are the exact comma
     *(Direct command: `CGO_ENABLED=0 go build -o bin/xynon ./cmd/xynon`)*
 *   **Build WASM Plugins**:
     ```bash
-    make plugins
+    make wasm
     ```
     *(Compiles all Go files under `examples/plugins/` using TinyGo targeting WASM)*
 

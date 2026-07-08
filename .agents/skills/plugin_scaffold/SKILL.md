@@ -1,9 +1,9 @@
 ---
-name: xynon_scaffold
+name: plugin_scaffold
 description: Scaffolds boilerplate code for Xynon WASM or RPC plugins.
 ---
 
-# Xynon Scaffold Skill
+# Plugin Scaffold Skill
 
 When the user asks you to create a new plugin for Xynon, use this skill to generate the correct boilerplate.
 

@@ -44,6 +44,11 @@
 //	xynon_log(handle i32, msg_ptr i32, msg_len i32) -> i32
 //	  Emits a log line from the plugin. Returns 0.
 //
+//	compute_hmac_sha256(msg_ptr i32, msg_len i32, key_ptr i32, key_len i32, out_ptr i32, out_cap i32) -> i32
+//	  Computes HMAC-SHA256 of msg[...] using key[...].
+//	  Writes the raw binary MAC into guest memory at out_ptr (up to out_cap bytes).
+//	  Returns the number of bytes written (32), or -1 on error (e.g. out_cap < 32).
+//
 // # Handle Lifetime
 //
 // Each invocation of on_request / on_response receives a unique handle i32.
@@ -65,11 +70,12 @@ const (
 	CurrentVersion = 1
 
 	// Host function names in the "env" namespace.
-	FnGetHeader    = "get_header"
-	FnSetHeader    = "set_header"
-	FnSetStatus    = "set_status"
-	FnShortCircuit = "short_circuit"
-	FnLog          = "xynon_log"
+	FnGetHeader       = "get_header"
+	FnSetHeader       = "set_header"
+	FnSetStatus       = "set_status"
+	FnShortCircuit    = "short_circuit"
+	FnLog             = "xynon_log"
+	FnComputeHMAC256  = "compute_hmac_sha256"
 
 	// Plugin export names.
 	ExportABIVersion = "xynon_abi_version"

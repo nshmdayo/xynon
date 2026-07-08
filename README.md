@@ -24,23 +24,21 @@ CGO_ENABLED=0 go build -o bin/xynon ./cmd/xynon
 
 ### プラグイン (TinyGo が必要)
 
-TinyGo 0.40.1 は Go 1.19–1.25 をサポートしています。Go 1.23 を用意し、以下のように GOROOT を指定してビルドします。
+TinyGo を使用してビルドします。
 
 ```bash
-GO123=/path/to/go1.23   # mise 例: ~/.local/share/mise/installs/go/1.23.12
 cd /tmp                  # プロジェクト go.mod の干渉を避けるため /tmp で実行
 
-GOROOT="$GO123" GOWORK=off PATH="$GO123/bin:$PATH" \
-  tinygo build \
-    -o /path/to/xynon/examples/plugins/add-header/add-header.wasm \
-    -target wasip1 \
-    /path/to/xynon/examples/plugins/add-header/main.go
+tinygo build \
+  -o /path/to/xynon/examples/plugins/add-header/add-header.wasm \
+  -target wasip1 \
+  /path/to/xynon/examples/plugins/add-header/main.go
 ```
 
 または Makefile ターゲットを使用します（`make` が利用可能な場合）:
 
 ```bash
-make plugins
+make wasm
 ```
 
 ## 起動
@@ -95,7 +93,7 @@ make plugins
 | 環境変数 | 説明 |
 |----------|------|
 | `TINYGO` | tinygo バイナリのパス（未設定時は PATH から解決） |
-| `XYNON_TINYGO_GOROOT` | TinyGo に渡す GOROOT（Go 1.26+ 環境で TinyGo 0.40.1 を使う場合は Go 1.23 の GOROOT を指定） |
+| `XYNON_TINYGO_GOROOT` | TinyGo に渡す GOROOT（デフォルト環境以外のGoを使う場合に指定） |
 
 ## 設定ファイル (YAML)
 

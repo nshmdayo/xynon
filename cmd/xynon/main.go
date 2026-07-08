@@ -98,7 +98,7 @@ func main() {
 	}
 
 	// Start proxy server.
-	p := proxy.New(reg)
+	p := proxy.New(reg, cfg.AllowLocalNetwork)
 	srv := &http.Server{
 		Addr:    cfg.Listen,
 		Handler: p,
