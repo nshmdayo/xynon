@@ -82,11 +82,12 @@ func main() {
 	var watcher *proxy.Watcher
 	if !*noHotReload {
 		wcfg := proxy.WatcherConfig{
-			PluginDir: cfg.Plugins.Dir,
-			Entries:   entries,
-			Limits:    limits,
-			Runtime:   rt,
-			Registry:  reg,
+			ConfigPath: *configPath,
+			PluginDir:  cfg.Plugins.Dir,
+			Entries:    entries,
+			Limits:     limits,
+			Runtime:    rt,
+			Registry:   reg,
 		}
 		watcher, err = proxy.NewWatcher(wcfg)
 		if err != nil {

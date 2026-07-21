@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/nshmdayo/xynon/internal/config"
 	"github.com/nshmdayo/xynon/internal/plugin"
 )
 
@@ -19,8 +20,9 @@ const (
 
 // WatcherConfig is the configuration needed to rebuild a chain on file events.
 type WatcherConfig struct {
-	PluginDir string
-	Entries   []plugin.ChainEntry
+	ConfigPath string
+	PluginDir  string
+	Entries    []plugin.ChainEntry
 	Limits    plugin.Limits
 	Runtime   *plugin.Runtime
 	Registry  *ChainRegistry
@@ -43,6 +45,14 @@ func NewWatcher(cfg WatcherConfig) (*Watcher, error) {
 	if err := fw.Add(cfg.PluginDir); err != nil {
 		_ = fw.Close()
 		return nil, err
+	}
+	if cfg.ConfigPath != "" {
+		if err := fw.Add(cfg.ConfigPath); err != nil {
+			if !os.IsNotExist(err) {
+				_ = fw.Close()
+				return nil, err
+			}
+		}
 	}
 	return &Watcher{cfg: cfg, watcher: fw, done: make(chan struct{})}, nil
 }
@@ -77,8 +87,18 @@ func (w *Watcher) loop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			if filepath.Ext(event.Name) == ".wasm" {
-				slog.Debug("wasm file event", "op", event.Op, "file", event.Name)
+			isConfig := w.cfg.ConfigPath != "" && filepath.Clean(event.Name) == filepath.Clean(w.cfg.ConfigPath)
+			isWasm := filepath.Ext(event.Name) == ".wasm"
+			isPlugin := false
+			for _, e := range w.cfg.Entries {
+				if filepath.Clean(event.Name) == filepath.Clean(e.Path) {
+					isPlugin = true
+					break
+				}
+			}
+
+			if isConfig || isWasm || isPlugin {
+				slog.Debug("file event", "op", event.Op, "file", event.Name)
 				resetTimer()
 			}
 
@@ -96,6 +116,31 @@ func (w *Watcher) loop(ctx context.Context) {
 
 // reload builds a new chain and swaps it atomically if all plugins load.
 func (w *Watcher) reload(ctx context.Context) {
+	if w.cfg.ConfigPath != "" {
+		cfg, err := config.Load(w.cfg.ConfigPath)
+		if err != nil {
+			slog.Warn("hot-reload config load failed", "err", err)
+		} else {
+			entries := make([]plugin.ChainEntry, 0, len(cfg.Plugins.Chain))
+			for _, e := range cfg.Plugins.Chain {
+				typ := e.Type
+				if typ == "" {
+					typ = config.PluginTypeWasm
+				}
+				path := filepath.Join(cfg.Plugins.Dir, e.Name)
+				if typ == config.PluginTypeWasm {
+					path += ".wasm"
+				}
+				entries = append(entries, plugin.ChainEntry{
+					Name: e.Name,
+					Type: typ,
+					Path: path,
+				})
+			}
+			w.cfg.Entries = entries
+		}
+	}
+
 	// Wait for file writes to stabilise.
 	entries := w.cfg.Entries
 	for i, e := range entries {
