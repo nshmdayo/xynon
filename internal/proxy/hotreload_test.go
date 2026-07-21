@@ -107,11 +107,110 @@ func TestHotReload_InvalidFile_KeepsChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(1 * time.Second) // allow debounce + reload attempt
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		current := reg.Load()
+		if current != original {
+			t.Errorf("expected original empty chain to be preserved, but chain was changed")
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
-	// Registry should still hold the original chain (no valid plugins loaded).
-	current := reg.Load()
-	if current != original && len(current.Plugins()) != 0 {
-		t.Errorf("expected original empty chain to be preserved, got %d plugins", len(current.Plugins()))
+func TestHotReload_ConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	if err := os.WriteFile(configPath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt := setupRuntime(t)
+	reg := &ChainRegistry{}
+	reg.Store(NewChain(nil))
+
+	reloadCalled := make(chan struct{}, 1)
+
+	cfg := WatcherConfig{
+		PluginDir:  dir,
+		ConfigPath: configPath,
+		ReloadConfig: func() ([]pluginpkg.ChainEntry, error) {
+			select {
+			case reloadCalled <- struct{}{}:
+			default:
+			}
+			return nil, nil
+		},
+		Entries:   nil,
+		Limits:    pluginpkg.DefaultLimits(),
+		Runtime:   rt,
+		Registry:  reg,
+	}
+
+	w, err := NewWatcher(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	w.Start(ctx)
+	defer w.Stop()
+
+	if err := os.WriteFile(configPath, []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-reloadCalled:
+		// Success
+	case <-time.After(3 * time.Second):
+		t.Error("hot-reload did not call ReloadConfig within timeout")
+	}
+}
+
+func TestHotReload_RPCPluginTrigger(t *testing.T) {
+	dir := t.TempDir()
+	rpcPath := filepath.Join(dir, "my-rpc-plugin")
+
+	rt := setupRuntime(t)
+	reg := &ChainRegistry{}
+	reg.Store(NewChain(nil))
+
+	reloadCalled := make(chan struct{}, 1)
+
+	cfg := WatcherConfig{
+		PluginDir: dir,
+		ReloadConfig: func() ([]pluginpkg.ChainEntry, error) {
+			select {
+			case reloadCalled <- struct{}{}:
+			default:
+			}
+			return nil, nil
+		},
+		Entries:   nil,
+		Limits:    pluginpkg.DefaultLimits(),
+		Runtime:   rt,
+		Registry:  reg,
+	}
+
+	w, err := NewWatcher(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	w.Start(ctx)
+	defer w.Stop()
+
+	if err := os.WriteFile(rpcPath, []byte("executable binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-reloadCalled:
+		// Success
+	case <-time.After(3 * time.Second):
+		t.Error("hot-reload did not trigger on RPC plugin file change")
 	}
 }
