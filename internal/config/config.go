@@ -17,9 +17,26 @@ const (
 )
 
 type Config struct {
-	Listen            string        `yaml:"listen"`
-	Plugins           PluginsConfig `yaml:"plugins"`
-	AllowLocalNetwork bool          `yaml:"allow_local_network"`
+	Listen            string                    `yaml:"listen"`
+	Plugins           PluginsConfig             `yaml:"plugins"`
+	AllowLocalNetwork bool                      `yaml:"allow_local_network"`
+	Upstreams         map[string]UpstreamConfig `yaml:"upstreams"`
+}
+
+// UpstreamConfig defines a load-balanced upstream backend.
+type UpstreamConfig struct {
+	Algorithm   string            `yaml:"algorithm"` // round_robin, least_connections, ip_hash
+	Servers     []string          `yaml:"servers"`
+	HealthCheck HealthCheckConfig `yaml:"health_check"`
+}
+
+// HealthCheckConfig defines health check parameters for an upstream.
+type HealthCheckConfig struct {
+	Path               string `yaml:"path"`
+	Interval           string `yaml:"interval"`
+	Timeout            string `yaml:"timeout"`
+	HealthyThreshold   int    `yaml:"healthy_threshold"`
+	UnhealthyThreshold int    `yaml:"unhealthy_threshold"`
 }
 
 // PluginsConfig holds plugin directory and the ordered chain.

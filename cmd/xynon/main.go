@@ -14,12 +14,20 @@ import (
 	"github.com/nshmdayo/xynon/internal/plugin"
 	"github.com/nshmdayo/xynon/internal/plugincli"
 	"github.com/nshmdayo/xynon/internal/proxy"
+	"github.com/nshmdayo/xynon/internal/upstreamscli"
 )
 
 func main() {
 	// Dispatch `xynon plugin <subcommand>` before parsing proxy flags.
 	if len(os.Args) >= 2 && os.Args[1] == "plugin" {
 		if err := plugincli.Run(os.Args[2:]); err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "upstreams" {
+		if err := upstreamscli.Run(os.Args[2:]); err != nil {
 			slog.Error(err.Error())
 			os.Exit(1)
 		}
@@ -98,7 +106,7 @@ func main() {
 	}
 
 	// Start proxy server.
-	p := proxy.New(reg, cfg.AllowLocalNetwork)
+	p := proxy.New(reg, cfg.AllowLocalNetwork, cfg.Upstreams)
 	srv := &http.Server{
 		Addr:    cfg.Listen,
 		Handler: p,
@@ -110,6 +118,7 @@ func main() {
 		if watcher != nil {
 			watcher.Stop()
 		}
+		p.Close()
 		_ = srv.Shutdown(context.Background())
 	}()
 

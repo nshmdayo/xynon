@@ -2,12 +2,17 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
+	"sync/atomic"
 	"time"
 
+	"github.com/nshmdayo/xynon/internal/config"
+	"github.com/nshmdayo/xynon/internal/lb"
 	"github.com/nshmdayo/xynon/internal/plugin/abi"
 )
 
@@ -16,14 +21,35 @@ type Proxy struct {
 	registry          *ChainRegistry
 	transport         http.RoundTripper
 	allowLocalNetwork bool
+	upstreams         map[string]*lb.LoadBalancer
+	healthCheckers    []*lb.HealthChecker
 }
 
 // New constructs a Proxy using the given chain registry.
-func New(registry *ChainRegistry, allowLocalNetwork bool) *Proxy {
+func New(registry *ChainRegistry, allowLocalNetwork bool, cfgUpstreams map[string]config.UpstreamConfig) *Proxy {
+	upstreams := make(map[string]*lb.LoadBalancer)
+	var hcs []*lb.HealthChecker
+	for name, uCfg := range cfgUpstreams {
+		bal := lb.NewLoadBalancer(uCfg.Algorithm, uCfg.Servers)
+		upstreams[name] = bal
+		hc := lb.NewHealthChecker(bal, uCfg.HealthCheck)
+		hc.Start()
+		hcs = append(hcs, hc)
+	}
+
 	return &Proxy{
 		registry:          registry,
 		transport:         http.DefaultTransport,
 		allowLocalNetwork: allowLocalNetwork,
+		upstreams:         upstreams,
+		healthCheckers:    hcs,
+	}
+}
+
+// Close stops background workers.
+func (p *Proxy) Close() {
+	for _, hc := range p.healthCheckers {
+		hc.Stop()
 	}
 }
 
@@ -36,7 +62,48 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.handleHTTP(w, r)
 }
 
+func (p *Proxy) handleAdminUpstreams(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	type AdminServer struct {
+		URL         string `json:"url"`
+		Alive       bool   `json:"alive"`
+		ActiveConns int64  `json:"active_conns"`
+	}
+	type AdminUpstream struct {
+		Algorithm string        `json:"algorithm"`
+		Servers   []AdminServer `json:"servers"`
+	}
+
+	res := make(map[string]AdminUpstream)
+	for name, bal := range p.upstreams {
+		var srvs []AdminServer
+		servers := bal.Servers
+		for _, s := range servers {
+			s.Mu.RLock()
+			srvs = append(srvs, AdminServer{
+				URL:         s.URL,
+				Alive:       s.Alive,
+				ActiveConns: atomic.LoadInt64(&s.ActiveConns),
+			})
+			s.Mu.RUnlock()
+		}
+		res[name] = AdminUpstream{
+			Algorithm: bal.Algorithm,
+			Servers:   srvs,
+		}
+	}
+
+	enc := json.NewEncoder(w)
+	_ = enc.Encode(res)
+}
+
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/_admin/upstreams" {
+		p.handleAdminUpstreams(w, r)
+		return
+	}
+
 	// Snapshot the current plugin chain once for this request.
 	chain := p.registry.Load()
 
@@ -55,7 +122,36 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	removeHopByHop(r.Header)
 	r.RequestURI = ""
 
+	var srv *lb.ServerStatus
+	if bal, ok := p.upstreams[r.Host]; ok {
+		clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if clientIP == "" {
+			clientIP = r.RemoteAddr
+		}
+		srv = bal.Next(clientIP)
+		if srv == nil {
+			http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		srv.IncConn()
+		defer srv.DecConn()
+
+		target, _ := url.Parse(srv.URL)
+		if target != nil {
+			r.URL.Scheme = target.Scheme
+			r.URL.Host = target.Host
+			r.Host = target.Host
+		}
+	}
+
 	resp, err := p.transport.RoundTrip(r)
+	if err != nil || (resp != nil && resp.StatusCode >= 500) {
+		if srv != nil {
+			// For passive health check, we report error
+			srv.ReportError(3) // Default unhealthy threshold
+		}
+	}
 	if err != nil {
 		http.Error(w, "bad gateway: "+err.Error(), http.StatusBadGateway)
 		return

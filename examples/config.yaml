@@ -1,8 +1,22 @@
 listen: ":8080"
 allow_local_network: true
-
 plugins:
   dir: "./examples/plugins"
   chain:
-    - name: auth
-    - name: add-header
+    - name: "auth"
+      type: "wasm"
+    - name: "add-header"
+      type: "wasm"
+
+upstreams:
+  my_backend:
+    algorithm: round_robin
+    servers:
+      - "http://localhost:8081"
+      - "http://localhost:8082"
+    health_check:
+      path: "/health"
+      interval: "1s"
+      timeout: "1s"
+      healthy_threshold: 1
+      unhealthy_threshold: 1

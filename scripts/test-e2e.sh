@@ -84,4 +84,14 @@ else
     exit 1
 fi
 
+echo "==> Testing Admin Upstreams API..."
+./bin/xynon upstreams status > /tmp/upstreams_status.txt
+if grep -q "my_backend" /tmp/upstreams_status.txt; then
+    echo "✅ upstreams status test passed"
+else
+    echo "❌ upstreams status test failed"
+    cat /tmp/upstreams_status.txt
+    exit 1
+fi
+
 echo "==> All E2E tests passed!"
