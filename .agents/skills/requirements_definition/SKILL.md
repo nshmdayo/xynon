@@ -1,6 +1,6 @@
 ---
 name: requirements_definition
-description: Act as a Product Manager and Systems Architect to interactively gather requirements and generate a declarative specification in the spec/ directory.
+description: プロダクトマネージャーおよびシステムアーキテクトとして対話的に要件を収集し、spec/ディレクトリに宣言的な仕様書を生成します。
 ---
 
 # Requirements Definition Skill

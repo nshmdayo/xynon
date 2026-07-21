@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Instructions for running Unit and E2E tests, and executing the Loop Engineering testing cycle.
+description: ユニットテストおよびE2Eテストの実行、ならびにLoop Engineeringのテストサイクルを実行するための指示です。
 ---
 # Testing Instructions for Autonomous Agents
 

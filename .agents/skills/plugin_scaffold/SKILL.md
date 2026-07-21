@@ -1,6 +1,6 @@
 ---
 name: plugin_scaffold
-description: Scaffolds boilerplate code for Xynon WASM or RPC plugins.
+description: XynonのWASMまたはRPCプラグインのボイラープレートコードを生成します。
 ---
 
 # Plugin Scaffold Skill
