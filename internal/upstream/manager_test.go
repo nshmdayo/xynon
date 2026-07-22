@@ -51,6 +51,9 @@ func TestNewManagerAndGet(t *testing.T) {
 	if up2 == nil {
 		t.Fatalf("expected to find backend2")
 	}
+	if _, ok := up2.Balancer.(*RoundRobin); !ok {
+		t.Errorf("expected fallback balancer to be RoundRobin, got %T", up2.Balancer)
+	}
 
 	// Test Statuses
 	statuses := m.Statuses()

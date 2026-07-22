@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"net/http"
 	"testing"
 
@@ -14,14 +16,14 @@ type mockMemory struct {
 }
 
 func (m *mockMemory) Read(offset, byteCount uint32) ([]byte, bool) {
-	if offset+byteCount > uint32(len(m.data)) {
+	if uint64(offset)+uint64(byteCount) > uint64(len(m.data)) {
 		return nil, false
 	}
 	return m.data[offset : offset+byteCount], true
 }
 
 func (m *mockMemory) Write(offset uint32, v []byte) bool {
-	if offset+uint32(len(v)) > uint32(len(m.data)) {
+	if uint64(offset)+uint64(len(v)) > uint64(len(m.data)) {
 		return false
 	}
 	copy(m.data[offset:], v)
@@ -50,7 +52,10 @@ func TestHostFunctions(t *testing.T) {
 	copy(mem.data[20:], "Value")
 
 	// Create a handle
-	req, _ := http.NewRequest("GET", "http://localhost", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost", nil)
+	if err != nil {
+		t.Fatalf("unexpected error creating request: %v", err)
+	}
 	req.Header.Set("X-Test", "HelloWorld")
 	
 	hd := &HandleData{
@@ -110,16 +115,16 @@ func TestHostFunctions(t *testing.T) {
 		if stack[0] != 32 {
 			t.Errorf("expected 32, got %d", stack[0])
 		}
-		// verify some output was written
-		empty := true
-		for _, b := range mem.data[200:232] {
-			if b != 0 {
-				empty = false
+		// verify exact HMAC output
+		mac := hmac.New(sha256.New, []byte("key"))
+		mac.Write([]byte("msg"))
+		expected := mac.Sum(nil)
+		
+		for i, b := range expected {
+			if mem.data[200+i] != b {
+				t.Errorf("HMAC mismatch at index %d: expected %x, got %x", i, b, mem.data[200+i])
 				break
 			}
-		}
-		if empty {
-			t.Errorf("expected non-empty HMAC output")
 		}
 	})
 
