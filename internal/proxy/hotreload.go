@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -19,11 +20,13 @@ const (
 
 // WatcherConfig is the configuration needed to rebuild a chain on file events.
 type WatcherConfig struct {
-	PluginDir string
-	Entries   []plugin.ChainEntry
-	Limits    plugin.Limits
-	Runtime   *plugin.Runtime
-	Registry  *ChainRegistry
+	PluginDir    string
+	ConfigPath   string
+	ReloadConfig func() ([]plugin.ChainEntry, error)
+	Entries      []plugin.ChainEntry
+	Limits       plugin.Limits
+	Runtime      *plugin.Runtime
+	Registry     *ChainRegistry
 }
 
 // Watcher monitors a plugin directory and hot-reloads the chain when WASM
@@ -32,6 +35,7 @@ type Watcher struct {
 	cfg     WatcherConfig
 	watcher *fsnotify.Watcher
 	done    chan struct{}
+	mu      sync.Mutex
 }
 
 // NewWatcher creates a Watcher that is ready to call Start().
@@ -43,6 +47,12 @@ func NewWatcher(cfg WatcherConfig) (*Watcher, error) {
 	if err := fw.Add(cfg.PluginDir); err != nil {
 		_ = fw.Close()
 		return nil, err
+	}
+	if cfg.ConfigPath != "" {
+		if err := fw.Add(filepath.Dir(cfg.ConfigPath)); err != nil {
+			_ = fw.Close()
+			return nil, err
+		}
 	}
 	return &Watcher{cfg: cfg, watcher: fw, done: make(chan struct{})}, nil
 }
@@ -77,8 +87,14 @@ func (w *Watcher) loop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			if filepath.Ext(event.Name) == ".wasm" {
-				slog.Debug("wasm file event", "op", event.Op, "file", event.Name)
+			isConfigEvent := w.cfg.ConfigPath != "" && filepath.Clean(event.Name) == filepath.Clean(w.cfg.ConfigPath)
+			isPluginDirEvent := filepath.Clean(filepath.Dir(event.Name)) == filepath.Clean(w.cfg.PluginDir)
+
+			if isConfigEvent {
+				slog.Debug("config file event", "op", event.Op, "file", event.Name)
+				resetTimer()
+			} else if isPluginDirEvent {
+				slog.Debug("plugin file event", "op", event.Op, "file", event.Name)
 				resetTimer()
 			}
 
@@ -96,6 +112,18 @@ func (w *Watcher) loop(ctx context.Context) {
 
 // reload builds a new chain and swaps it atomically if all plugins load.
 func (w *Watcher) reload(ctx context.Context) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.cfg.ReloadConfig != nil {
+		newEntries, err := w.cfg.ReloadConfig()
+		if err != nil {
+			slog.Warn("failed to reload config — aborting reload", "err", err)
+			return
+		}
+		w.cfg.Entries = newEntries
+	}
+
 	// Wait for file writes to stabilise.
 	entries := w.cfg.Entries
 	for i, e := range entries {
