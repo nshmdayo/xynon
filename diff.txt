@@ -1,0 +1,418 @@
+commit 8ffbd66718712cbbc0099986bc0eacb40c3b05e1
+Author: nshmdayo <asrgmt24@gmail.com>
+Date:   Thu Jul 23 00:40:47 2026 +0900
+
+    Fix: resolve issue #14
+
+diff --git a/cmd/xynon/main.go b/cmd/xynon/main.go
+index 4345f7b..a70aba0 100644
+--- a/cmd/xynon/main.go
++++ b/cmd/xynon/main.go
+@@ -5,6 +5,8 @@ import (
+ 	"flag"
+ 	"log/slog"
+ 	"net/http"
++
++	"github.com/prometheus/client_golang/prometheus/promhttp"
+ 	"os"
+ 	"os/signal"
+ 	"path/filepath"
+@@ -132,6 +134,22 @@ func main() {
+ 		}
+ 	}
+ 
++	// Start metrics server if enabled
++	if cfg.Metrics.Enabled {
++		addr := cfg.Metrics.Address
++		if addr == "" {
++			addr = ":9090"
++		}
++		go func() {
++			metricsMux := http.NewServeMux()
++			metricsMux.Handle("/metrics", promhttp.Handler())
++			slog.Info("metrics server listening", "addr", addr)
++			if err := http.ListenAndServe(addr, metricsMux); err != nil && err != http.ErrServerClosed {
++				slog.Error("metrics server failed", "err", err)
++			}
++		}()
++	}
++
+ 	// Initialize upstream manager.
+ 	upManager, err := upstream.NewManager(ctx, cfg.Upstreams)
+ 	if err != nil {
+diff --git a/go.mod b/go.mod
+index 11fd1b1..5ab30b8 100644
+--- a/go.mod
++++ b/go.mod
+@@ -3,21 +3,31 @@ module github.com/nshmdayo/xynon
+ go 1.26.1
+ 
+ require (
++	github.com/fsnotify/fsnotify v1.9.0
++	github.com/hashicorp/go-plugin v1.8.0
++	github.com/prometheus/client_golang v1.24.0
++	github.com/tetratelabs/wazero v1.11.0
++	gopkg.in/yaml.v3 v3.0.1
++)
++
++require (
++	github.com/beorn7/perks v1.0.1 // indirect
++	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+ 	github.com/fatih/color v1.13.0 // indirect
+-	github.com/fsnotify/fsnotify v1.9.0 // indirect
+ 	github.com/golang/protobuf v1.5.4 // indirect
+ 	github.com/hashicorp/go-hclog v1.6.3 // indirect
+-	github.com/hashicorp/go-plugin v1.8.0 // indirect
+ 	github.com/hashicorp/yamux v0.1.2 // indirect
+ 	github.com/mattn/go-colorable v0.1.12 // indirect
+ 	github.com/mattn/go-isatty v0.0.17 // indirect
++	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+ 	github.com/oklog/run v1.1.0 // indirect
+-	github.com/tetratelabs/wazero v1.11.0 // indirect
+-	golang.org/x/net v0.38.0 // indirect
+-	golang.org/x/sys v0.38.0 // indirect
+-	golang.org/x/text v0.23.0 // indirect
++	github.com/prometheus/client_model v0.6.2 // indirect
++	github.com/prometheus/common v0.70.0 // indirect
++	github.com/prometheus/procfs v0.21.1 // indirect
++	golang.org/x/net v0.56.0 // indirect
++	golang.org/x/sys v0.47.0 // indirect
++	golang.org/x/text v0.38.0 // indirect
+ 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 // indirect
+ 	google.golang.org/grpc v1.61.0 // indirect
+-	google.golang.org/protobuf v1.36.6 // indirect
+-	gopkg.in/yaml.v3 v3.0.1 // indirect
++	google.golang.org/protobuf v1.36.11 // indirect
+ )
+diff --git a/go.sum b/go.sum
+index 8dd49bf..27f4689 100644
+--- a/go.sum
++++ b/go.sum
+@@ -1,4 +1,11 @@
++github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
++github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
++github.com/bufbuild/protocompile v0.14.1 h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
++github.com/bufbuild/protocompile v0.14.1/go.mod h1:ppVdAIhbr2H8asPk6k4pY7t9zB1OU5DoEw9xY/FUi1c=
++github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
++github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
++github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
+ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+ github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
+ github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
+@@ -6,12 +13,20 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
+ github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
+ github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
+ github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
++github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
++github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+ github.com/hashicorp/go-hclog v1.6.3 h1:Qr2kF+eVWjTiYmU7Y31tYlP1h0q/X3Nl3tPGdaB11/k=
+ github.com/hashicorp/go-hclog v1.6.3/go.mod h1:W4Qnvbt70Wk/zYJryRzDRU/4r0kIg0PVHBcfoyhpF5M=
+ github.com/hashicorp/go-plugin v1.8.0 h1:ie8S6RRY8RvB2usYZv+AAZ/wBvx2AU5p5QeP5j/FORs=
+ github.com/hashicorp/go-plugin v1.8.0/go.mod h1:BExt6KEaIYx804z8k4gRzRLEvxKVb+kn0NMcihqOqb8=
+ github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
+ github.com/hashicorp/yamux v0.1.2/go.mod h1:C+zze2n6e/7wshOZep2A70/aQU6QBRWJO/G6FT1wIns=
++github.com/jhump/protoreflect v1.17.0 h1:qOEr613fac2lOuTgWN4tPAtLL7fUSbuJL5X5XumQh94=
++github.com/jhump/protoreflect v1.17.0/go.mod h1:h9+vUUL38jiBzck8ck+6G/aeMX8Z4QUY/NiJPwPNi+8=
++github.com/klauspost/compress v1.19.0 h1:sXLILfc9jV2QYWkzFOPWStmcUVH2RHEB1JCdY2oVvCQ=
++github.com/klauspost/compress v1.19.0/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
++github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
++github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
+ github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
+ github.com/mattn/go-colorable v0.1.12 h1:jF+Du6AlPIjs2BiUiQlKOX0rt3SujHxPnksPKZbaA40=
+ github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=
+@@ -19,31 +34,49 @@ github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Ky
+ github.com/mattn/go-isatty v0.0.14/go.mod h1:7GGIvUiUoEMVVmxf/4nioHXj79iQHKdU27kJ6hsGG94=
+ github.com/mattn/go-isatty v0.0.17 h1:BTarxUcIeDqL27Mc+vyvdWYSL28zpIhv3RoTdsLMPng=
+ github.com/mattn/go-isatty v0.0.17/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
++github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
++github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
+ github.com/oklog/run v1.1.0 h1:GEenZ1cK0+q0+wsJew9qUg/DyD8k3JzYsZAi5gYi2mA=
+ github.com/oklog/run v1.1.0/go.mod h1:sVPdnTZT1zYwAJeCMu2Th4T21pA3FPOQRfWjQlk7DVU=
++github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
+ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
++github.com/prometheus/client_golang v1.24.0 h1:5XStIklKuAtJSNpdD3s8XJj/Yv78IQmE1kbNk87JrAI=
++github.com/prometheus/client_golang v1.24.0/go.mod h1:QcsNdotprC2nS4BTM2ucbcqxd2CeXTEa9jW7zHO9iDE=
++github.com/prometheus/client_model v0.6.2 h1:oBsgwpGs7iVziMvrGhE53c/GrLUsZdHnqNwqPLxwZyk=
++github.com/prometheus/client_model v0.6.2/go.mod h1:y3m2F6Gdpfy6Ut/GBsUqTWZqCUvMVzSfMLjcu6wAwpE=
++github.com/prometheus/common v0.70.0 h1:bcpru3tWPVnxGnETLgOV5jbp/JRXgYEyv65CuBLAMMI=
++github.com/prometheus/common v0.70.0/go.mod h1:S/SFasQmgGiYH6C81LKCtYa8QACgthGg5zxL2udV7SY=
++github.com/prometheus/procfs v0.21.1 h1:GljZCt+zSTS+NZq88cyQ1LjZ+RCHp3uVuabBWA5+OJI=
++github.com/prometheus/procfs v0.21.1/go.mod h1:aB55Cww9pdSJVHk0hUf0inxWyyjPogFIjmHKYgMKmtY=
+ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
+ github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
++github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
++github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
+ github.com/tetratelabs/wazero v1.11.0 h1:+gKemEuKCTevU4d7ZTzlsvgd1uaToIDtlQlmNbwqYhA=
+ github.com/tetratelabs/wazero v1.11.0/go.mod h1:eV28rsN8Q+xwjogd7f4/Pp4xFxO7uOGbLcD/LzB1wiU=
+-golang.org/x/net v0.38.0 h1:vRMAPTMaeGqVhG5QyLJHqNDwecKTomGeqbnfZyKlBI8=
+-golang.org/x/net v0.38.0/go.mod h1:ivrbrMbzFq5J41QOQh0siUuly180yBYtLp+CKbEaFx8=
++go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
++go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
++go.yaml.in/yaml/v2 v2.4.4 h1:tuyd0P+2Ont/d6e2rl3be67goVK4R6deVxCUX5vyPaQ=
++go.yaml.in/yaml/v2 v2.4.4/go.mod h1:gMZqIpDtDqOfM0uNfy0SkpRhvUryYH0Z6wdMYcacYXQ=
++golang.org/x/net v0.56.0 h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
++golang.org/x/net v0.56.0/go.mod h1:D3Ku6r+V6JROoZK144D2XfMHFcMq/0zSfLelVTCFKec=
+ golang.org/x/sys v0.0.0-20200116001909-b77594299b42/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+ golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+ golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+-golang.org/x/sys v0.38.0 h1:3yZWxaJjBmCWXqhN1qh02AkOnCQ1poK6oF+a7xWL6Gc=
+-golang.org/x/sys v0.38.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
+-golang.org/x/text v0.23.0 h1:D71I7dUrlY+VX0gQShAThNGHFxZ13dGLBHQLVl1mJlY=
+-golang.org/x/text v0.23.0/go.mod h1:/BLNzu4aZCJ1+kcD0DNRotWKage4q2rGVAg4o22unh4=
++golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
++golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
++golang.org/x/text v0.38.0 h1:sXmwo9DwP3OK9EZ7PqAdaooSGozfl/3a6/xJcbzPRhE=
++golang.org/x/text v0.38.0/go.mod h1:YXZt3QhHUKYT53r2lLKFIVi6Ao1jdzrTR/KQ09qyxF4=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 h1:Jyp0Hsi0bmHXG6k9eATXoYtjd6e2UzZ1SCn/wIupY14=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17/go.mod h1:oQ5rr10WTTMvP4A36n8JpR1OrO1BEiV4f78CneXZxkA=
+ google.golang.org/grpc v1.61.0 h1:TOvOcuXn30kRao+gfcvsebNEa5iZIiLkisYEkf7R7o0=
+ google.golang.org/grpc v1.61.0/go.mod h1:VUbo7IFqmF1QtCAstipjG0GIoq49KvMe9+h1jFLBNJs=
+-google.golang.org/protobuf v1.36.6 h1:z1NpPI8ku2WgiWnf+t9wTPsn6eP1L7ksHUlkfLvd9xY=
+-google.golang.org/protobuf v1.36.6/go.mod h1:jduwjTPXsFjZGTmRluh+L6NjiWu7pchiJ2/5YcXBHnY=
++google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
++google.golang.org/protobuf v1.36.11/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
++gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
+ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+ gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 80da13c..54912f0 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -18,11 +18,17 @@ const (
+ 
+ type Config struct {
+ 	Listen            string           `yaml:"listen"`
++	Metrics           MetricsConfig    `yaml:"metrics"`
+ 	Plugins           PluginsConfig    `yaml:"plugins"`
+ 	AllowLocalNetwork bool             `yaml:"allow_local_network"`
+ 	Upstreams         []UpstreamConfig `yaml:"upstreams"`
+ }
+ 
++type MetricsConfig struct {
++	Enabled bool   `yaml:"enabled"`
++	Address string `yaml:"address"`
++}
++
+ type UpstreamConfig struct {
+ 	Name        string             `yaml:"name"`
+ 	Algorithm   string             `yaml:"algorithm"`
+diff --git a/internal/config/config_test.go b/internal/config/config_test.go
+index 37f2874..46b26cb 100644
+--- a/internal/config/config_test.go
++++ b/internal/config/config_test.go
+@@ -22,6 +22,9 @@ func writeTemp(t *testing.T, content string) string {
+ func TestLoad_Valid(t *testing.T) {
+ 	path := writeTemp(t, `
+ listen: ":8080"
++metrics:
++  enabled: true
++  address: ":9091"
+ plugins:
+   dir: "/tmp/plugins"
+   chain:
+@@ -37,6 +40,12 @@ plugins:
+ 	if cfg.Plugins.Dir != "/tmp/plugins" {
+ 		t.Errorf("plugins.dir = %q, want /tmp/plugins", cfg.Plugins.Dir)
+ 	}
++	if cfg.Metrics.Enabled != true {
++		t.Errorf("metrics.enabled = %v, want true", cfg.Metrics.Enabled)
++	}
++	if cfg.Metrics.Address != ":9091" {
++		t.Errorf("metrics.address = %q, want :9091", cfg.Metrics.Address)
++	}
+ 	if len(cfg.Plugins.Chain) != 1 || cfg.Plugins.Chain[0].Name != "add-header" {
+ 		t.Errorf("unexpected chain: %+v", cfg.Plugins.Chain)
+ 	}
+diff --git a/internal/proxy/metrics.go b/internal/proxy/metrics.go
+new file mode 100644
+index 0000000..0957ddc
+--- /dev/null
++++ b/internal/proxy/metrics.go
+@@ -0,0 +1,54 @@
++package proxy
++
++import (
++	"strconv"
++	"strings"
++	"time"
++
++	"github.com/prometheus/client_golang/prometheus"
++	"github.com/prometheus/client_golang/prometheus/promauto"
++)
++
++var (
++	requestCount = promauto.NewCounterVec(
++		prometheus.CounterOpts{
++			Name: "xynon_requests_total",
++			Help: "Total number of HTTP requests processed, partitioned by status code, method and normalized path.",
++		},
++		[]string{"status", "method", "path"},
++	)
++	requestLatency = promauto.NewHistogramVec(
++		prometheus.HistogramOpts{
++			Name:    "xynon_request_duration_seconds",
++			Help:    "Histogram of request latencies.",
++			Buckets: prometheus.DefBuckets,
++		},
++		[]string{"status", "method", "path"},
++	)
++)
++
++// normalizePath replaces segments that look like IDs with placeholders to prevent cardinality explosion.
++func normalizePath(path string) string {
++	segments := strings.Split(path, "/")
++	for i, segment := range segments {
++		// Replace numeric segments with {id}
++		if _, err := strconv.Atoi(segment); err == nil {
++			segments[i] = "{id}"
++			continue
++		}
++		// Replace UUID segments with {id}
++		if len(segment) == 36 && strings.Count(segment, "-") == 4 {
++			segments[i] = "{id}"
++		}
++	}
++	return strings.Join(segments, "/")
++}
++
++// RecordMetrics records Prometheus metrics for a single request.
++func RecordMetrics(method, path string, status int, duration time.Duration) {
++	normPath := normalizePath(path)
++	statusStr := strconv.Itoa(status)
++	
++	requestCount.WithLabelValues(statusStr, method, normPath).Inc()
++	requestLatency.WithLabelValues(statusStr, method, normPath).Observe(duration.Seconds())
++}
+diff --git a/internal/proxy/metrics_test.go b/internal/proxy/metrics_test.go
+new file mode 100644
+index 0000000..497d4c1
+--- /dev/null
++++ b/internal/proxy/metrics_test.go
+@@ -0,0 +1,24 @@
++package proxy
++
++import "testing"
++
++func TestNormalizePath(t *testing.T) {
++	tests := []struct {
++		input string
++		want  string
++	}{
++		{"/api/v1/users/123", "/api/v1/users/{id}"},
++		{"/api/v1/users/123/profile", "/api/v1/users/{id}/profile"},
++		{"/api/v1/items/abc-def", "/api/v1/items/abc-def"},
++		{"/api/v1/items/550e8400-e29b-41d4-a716-446655440000", "/api/v1/items/{id}"},
++		{"/", "/"},
++		{"/123", "/{id}"},
++	}
++
++	for _, tt := range tests {
++		got := normalizePath(tt.input)
++		if got != tt.want {
++			t.Errorf("normalizePath(%q) = %q; want %q", tt.input, got, tt.want)
++		}
++	}
++}
+diff --git a/internal/proxy/proxy.go b/internal/proxy/proxy.go
+index ca53c20..f18ea4f 100644
+--- a/internal/proxy/proxy.go
++++ b/internal/proxy/proxy.go
+@@ -64,6 +64,12 @@ func (p *Proxy) handleAdminUpstreams(w http.ResponseWriter, r *http.Request) {
+ }
+ 
+ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
++	start := time.Now()
++	sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
++	w = sw
++	defer func() {
++		RecordMetrics(r.Method, r.URL.Path, sw.statusCode, time.Since(start))
++	}()
+ 	// Snapshot the current plugin chain once for this request.
+ 	chain := p.registry.Load()
+ 
+@@ -134,6 +140,12 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
+ }
+ 
+ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
++	start := time.Now()
++	sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
++	w = sw
++	defer func() {
++		RecordMetrics(r.Method, r.URL.Path, sw.statusCode, time.Since(start))
++	}()
+ 	// Snapshot the current plugin chain for this request.
+ 	chain := p.registry.Load()
+ 
+@@ -171,7 +183,7 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	defer dst.Close()
+ 
+-	hijacker, ok := w.(http.Hijacker)
++	hijacker, ok := sw.ResponseWriter.(http.Hijacker)
+ 	if !ok {
+ 		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+ 		return
+@@ -238,3 +250,14 @@ func removeHopByHop(h http.Header) {
+ 		h.Del(name)
+ 	}
+ }
++
++// statusWriter captures the HTTP status code written by the proxy.
++type statusWriter struct {
++	http.ResponseWriter
++	statusCode int
++}
++
++func (w *statusWriter) WriteHeader(code int) {
++	w.statusCode = code
++	w.ResponseWriter.WriteHeader(code)
++}
+diff --git a/spec/metrics.md b/spec/metrics.md
+new file mode 100644
+index 0000000..605f91c
+--- /dev/null
++++ b/spec/metrics.md
+@@ -0,0 +1,38 @@
++# Metrics Specification
++
++## Overview
++
++Xynon exposes Prometheus metrics to provide observability into proxy traffic. Metrics are exposed via a `/metrics` endpoint on a configured address.
++
++## Configuration
++
++Metrics can be enabled in `config.yaml` using the `metrics` section.
++
++```yaml
++listen: ":8080"
++metrics:
++  enabled: true
++  address: ":9090"
++plugins:
++  dir: "./examples/plugins"
++  chain: []
++```
++
++- `enabled`: If true, the metrics server starts.
++- `address`: The address the metrics server listens on. Defaults to `:9090`.
++
++## Exposed Metrics
++
++The following metrics are exported:
++
++| Metric Name | Type | Labels | Description |
++|---|---|---|---|
++| `xynon_requests_total` | Counter | `status`, `method`, `path` | Total number of HTTP requests processed. |
++| `xynon_request_duration_seconds` | Histogram | `status`, `method`, `path` | Request duration in seconds. |
++
++## Path Normalization
++
++To prevent cardinality explosion in Prometheus labels, request paths are normalized.
++- Numeric path segments (e.g., `/api/users/123`) are replaced with `{id}`.
++- UUID path segments (e.g., `/api/users/550e8400-e29b-41d4-a716-446655440000`) are replaced with `{id}`.
++

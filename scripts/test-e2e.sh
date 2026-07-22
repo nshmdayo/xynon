@@ -84,14 +84,17 @@ else
     exit 1
 fi
 
-
+# Test 5: Rate Limiter
 echo "==> Running Test 5: Rate Limiter"
 export JWT_TOKEN=$(go run scripts/gen_jwt.go)
-# We have capacity 5, we already used 2 for token in Test 2 and 4? Wait, each request with the same token/IP uses it.
-# Let us use a unique X-Forwarded-For for this test so we have a fresh bucket.
+# Use a unique X-Forwarded-For for this test so we have a fresh bucket.
 IP="10.0.0.5"
-for i in {1..5}; do
-    curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081 >/dev/null
+for idx in 1 2 3 4 5; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081)
+    if [ "$STATUS" != "200" ]; then
+        echo "❌ rate limiter test failed (request $idx returned $STATUS, expected 200)"
+        exit 1
+    fi
 done
 
 # 6th request should fail with 429
@@ -105,6 +108,33 @@ if echo "$RESPONSE" | grep -q "HTTP/1.1 429 Too Many Requests"; then
     fi
 else
     echo "❌ rate limiter test failed (not 429)"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# Test 6: Circuit Breaker triggering
+echo "Triggering circuit breaker (2 failures)..."
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+
+# Test 7: Circuit Breaker Open
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
+    echo "✅ Circuit Breaker Open test passed"
+else
+    echo "❌ Circuit Breaker Open test failed (expected 503)"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# Test 8: Circuit Breaker Half-Open/Recovery
+echo "Waiting 3 seconds for Circuit Breaker timeout..."
+sleep 3
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "200 OK"; then
+    echo "✅ Circuit Breaker Half-Open Recovery test passed"
+else
+    echo "❌ Circuit Breaker Half-Open Recovery test failed (expected 200)"
     echo "$RESPONSE"
     exit 1
 fi

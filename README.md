@@ -10,6 +10,7 @@ internal/config/     ← 設定ローダ
 internal/plugin/     ← WASM ランタイム・ABI・ローダ
 internal/plugin/abi/ ← ABI 定数・ドキュメント
 internal/proxy/      ← プロキシハンドラ・チェーンレジストリ・ホットリロード
+internal/upstream/   ← ルーティング・ヘルスチェック・サーキットブレーカー
 examples/plugins/    ← サンプルプラグイン
 examples/config.yaml ← サンプル設定
 ```
@@ -118,6 +119,10 @@ upstreams:
     algorithm: round_robin
     servers:
       - url: http://localhost:8081
+    circuit_breaker:
+      enabled: true
+      error_threshold: 5
+      timeout: "30s"
     health_check:
       active:
         enabled: true
@@ -133,7 +138,7 @@ upstreams:
 | `listen` | ✓ | リスンアドレス（例: `:8080`） |
 | `plugins.dir` | ✓ | WASM ファイルが置かれるディレクトリ |
 | `plugins.chain[]` | - | 有効化するプラグインと実行順序 |
-| `upstreams` | - | ロードバランシング・ヘルスチェックを行うバックエンドクラスタの定義 |
+| `upstreams` | - | ロードバランシング・ヘルスチェック・サーキットブレーカーを行うバックエンドクラスタの定義 |
 
 ## ホットリロードの動作確認
 

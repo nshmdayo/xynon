@@ -6,8 +6,8 @@ import (
 )
 
 func TestRoundRobin(t *testing.T) {
-	s1, _ := NewServer("http://s1")
-	s2, _ := NewServer("http://s2")
+	s1, _ := NewServer("http://s1", nil)
+	s2, _ := NewServer("http://s2", nil)
 	balancer := NewBalancer("round_robin", []*Server{s1, s2})
 
 	req, _ := http.NewRequest("GET", "http://test", nil)
@@ -31,8 +31,8 @@ func TestRoundRobin(t *testing.T) {
 }
 
 func TestLeastConnections(t *testing.T) {
-	s1, _ := NewServer("http://s1")
-	s2, _ := NewServer("http://s2")
+	s1, _ := NewServer("http://s1", nil)
+	s2, _ := NewServer("http://s2", nil)
 	balancer := NewBalancer("least_connections", []*Server{s1, s2})
 
 	req, _ := http.NewRequest("GET", "http://test", nil)
@@ -45,8 +45,8 @@ func TestLeastConnections(t *testing.T) {
 }
 
 func TestIPHash(t *testing.T) {
-	s1, _ := NewServer("http://s1")
-	s2, _ := NewServer("http://s2")
+	s1, _ := NewServer("http://s1", nil)
+	s2, _ := NewServer("http://s2", nil)
 	balancer := NewBalancer("ip_hash", []*Server{s1, s2})
 
 	req, _ := http.NewRequest("GET", "http://test", nil)
