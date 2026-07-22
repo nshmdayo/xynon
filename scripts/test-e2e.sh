@@ -120,17 +120,37 @@ else
     exit 1
 fi
 
-# Test 6: Circuit Breaker triggering
-# Use a dedicated IP for circuit breaker tests to avoid rate limiter interference from Test 5
+# Test 6: Caching Plugin
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
+# Use a unique X-Forwarded-For so we don't hit the rate limiter
+CACHE_IP="10.0.0.6"
+# Request 1
+RESP1=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 111" -H "X-Forwarded-For: $CACHE_IP" -x http://localhost:8080 http://localhost:8081/cache-test)
+# Request 2 (should be cached, so X-Rand should be 111 in the body, even if we send 222)
+RESP2=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 222" -H "X-Forwarded-For: $CACHE_IP" -x http://localhost:8080 http://localhost:8081/cache-test)
+
+if echo "$RESP1" | grep -q "X-Rand: 111" && echo "$RESP2" | grep -q "X-Rand: 111"; then
+    echo "✅ caching plugin test passed"
+else
+    echo "❌ caching plugin test failed"
+    echo "RESP1: $RESP1"
+    echo "RESP2: $RESP2"
+    exit 1
+fi
+
+# Test 7: Circuit Breaker triggering
+# Use a dedicated IP for circuit breaker tests to avoid rate limiter interference
+# Use Cache-Control: no-cache to bypass the caching plugin
 CB_IP="10.0.0.99"
 JWT_TOKEN=$(go run scripts/gen_jwt.go)
 export JWT_TOKEN
 echo "Triggering circuit breaker (2 failures)..."
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
 
-# Test 7: Circuit Breaker Open
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081)
+# Test 8: Circuit Breaker Open
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
     echo "✅ Circuit Breaker Open test passed"
 else
@@ -139,10 +159,10 @@ else
     exit 1
 fi
 
-# Test 8: Circuit Breaker Half-Open/Recovery
+# Test 9: Circuit Breaker Half-Open/Recovery
 echo "Waiting 3 seconds for Circuit Breaker timeout..."
 sleep 3
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "200 OK"; then
     echo "✅ Circuit Breaker Half-Open Recovery test passed"
 else

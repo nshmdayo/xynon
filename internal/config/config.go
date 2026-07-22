@@ -75,8 +75,9 @@ type PluginsConfig struct {
 
 // PluginEntry identifies one plugin in the chain.
 type PluginEntry struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type"` // "wasm" or "rpc"
+	Name   string         `yaml:"name"`
+	Type   string         `yaml:"type"` // "wasm" or "rpc"
+	Path   string         `yaml:"path"`
 	Config map[string]any `yaml:"config"`
 }
 

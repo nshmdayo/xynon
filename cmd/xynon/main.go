@@ -68,9 +68,12 @@ func main() {
 		if typ == "" {
 			typ = config.PluginTypeWasm
 		}
-		path := filepath.Join(cfg.Plugins.Dir, e.Name)
-		if typ == config.PluginTypeWasm {
-			path += ".wasm"
+		path := e.Path
+		if path == "" {
+			path = filepath.Join(cfg.Plugins.Dir, e.Name)
+			if typ == config.PluginTypeWasm {
+				path += ".wasm"
+			}
 		}
 		var cfgBytes []byte
 		if e.Config != nil {
@@ -114,9 +117,12 @@ func main() {
 					if typ == "" {
 						typ = config.PluginTypeWasm
 					}
-					path := filepath.Join(newCfg.Plugins.Dir, e.Name)
-					if typ == config.PluginTypeWasm {
-						path += ".wasm"
+					path := e.Path
+					if path == "" {
+						path = filepath.Join(newCfg.Plugins.Dir, e.Name)
+						if typ == config.PluginTypeWasm {
+							path += ".wasm"
+						}
 					}
 					var cfgBytes []byte
 					if e.Config != nil {

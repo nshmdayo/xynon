@@ -36,9 +36,9 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
 
 // ChainEntry pairs a plugin name with its execution type and file path.
 type ChainEntry struct {
-	Name string
-	Type string
-	Path string
+	Name   string
+	Type   string
+	Path   string
 	Config []byte
 }
 
