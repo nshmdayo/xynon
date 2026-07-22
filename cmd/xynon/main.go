@@ -93,11 +93,35 @@ func main() {
 	var watcher *proxy.Watcher
 	if !*noHotReload {
 		wcfg := proxy.WatcherConfig{
-			PluginDir: cfg.Plugins.Dir,
-			Entries:   entries,
-			Limits:    limits,
-			Runtime:   rt,
-			Registry:  reg,
+			PluginDir:  cfg.Plugins.Dir,
+			ConfigPath: *configPath,
+			ReloadConfig: func() ([]plugin.ChainEntry, error) {
+				newCfg, err := config.Load(*configPath)
+				if err != nil {
+					return nil, err
+				}
+				newEntries := make([]plugin.ChainEntry, 0, len(newCfg.Plugins.Chain))
+				for _, e := range newCfg.Plugins.Chain {
+					typ := e.Type
+					if typ == "" {
+						typ = config.PluginTypeWasm
+					}
+					path := filepath.Join(newCfg.Plugins.Dir, e.Name)
+					if typ == config.PluginTypeWasm {
+						path += ".wasm"
+					}
+					newEntries = append(newEntries, plugin.ChainEntry{
+						Name: e.Name,
+						Type: typ,
+						Path: path,
+					})
+				}
+				return newEntries, nil
+			},
+			Entries:  entries,
+			Limits:   limits,
+			Runtime:  rt,
+			Registry: reg,
 		}
 		watcher, err = proxy.NewWatcher(wcfg)
 		if err != nil {
