@@ -43,9 +43,12 @@ type Server struct {
 
 	// connection tracking for least_connections
 	activeConns atomic.Int64
+
+	// circuit breaker
+	cb *CircuitBreaker
 }
 
-func NewServer(rawURL string) (*Server, error) {
+func NewServer(rawURL string, cb *CircuitBreaker) (*Server, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
@@ -54,13 +57,26 @@ func NewServer(rawURL string) (*Server, error) {
 		URL:            u,
 		activeHealthy:  true,
 		passiveHealthy: true,
+		cb:             cb,
 	}, nil
 }
 
 func (s *Server) IsHealthy() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	
+	if s.cb != nil && !s.cb.CanAttempt() {
+		return false
+	}
+	
 	return s.activeHealthy && s.passiveHealthy
+}
+
+func (s *Server) AcquireCB() bool {
+	if s.cb != nil {
+		return s.cb.AllowRequest()
+	}
+	return true
 }
 
 func (s *Server) SetActiveHealthy(healthy bool) {
@@ -107,6 +123,18 @@ func (s *Server) DecConn() {
 
 func (s *Server) ActiveConns() int64 {
 	return s.activeConns.Load()
+}
+
+func (s *Server) RecordCBFailure() {
+	if s.cb != nil {
+		s.cb.RecordFailure()
+	}
+}
+
+func (s *Server) RecordCBSuccess() {
+	if s.cb != nil {
+		s.cb.RecordSuccess()
+	}
 }
 
 type Balancer interface {

@@ -84,7 +84,6 @@ else
     exit 1
 fi
 
-
 # Test 5: Caching Plugin
 export JWT_TOKEN=$(go run scripts/gen_jwt.go)
 # Request 1
@@ -98,6 +97,33 @@ else
     echo "❌ caching plugin test failed"
     echo "RESP1: $RESP1"
     echo "RESP2: $RESP2"
+    exit 1
+fi
+
+# Test 6: Circuit Breaker triggering
+echo "Triggering circuit breaker (2 failures)..."
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+
+# Test 7: Circuit Breaker Open
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
+    echo "✅ Circuit Breaker Open test passed"
+else
+    echo "❌ Circuit Breaker Open test failed (expected 503)"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# Test 8: Circuit Breaker Half-Open/Recovery
+echo "Waiting 3 seconds for Circuit Breaker timeout..."
+sleep 3
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "200 OK"; then
+    echo "✅ Circuit Breaker Half-Open Recovery test passed"
+else
+    echo "❌ Circuit Breaker Half-Open Recovery test failed (expected 200)"
+    echo "$RESPONSE"
     exit 1
 fi
 

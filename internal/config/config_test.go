@@ -22,6 +22,9 @@ func writeTemp(t *testing.T, content string) string {
 func TestLoad_Valid(t *testing.T) {
 	path := writeTemp(t, `
 listen: ":8080"
+metrics:
+  enabled: true
+  address: ":9091"
 plugins:
   dir: "/tmp/plugins"
   chain:
@@ -36,6 +39,12 @@ plugins:
 	}
 	if cfg.Plugins.Dir != "/tmp/plugins" {
 		t.Errorf("plugins.dir = %q, want /tmp/plugins", cfg.Plugins.Dir)
+	}
+	if cfg.Metrics.Enabled != true {
+		t.Errorf("metrics.enabled = %v, want true", cfg.Metrics.Enabled)
+	}
+	if cfg.Metrics.Address != ":9091" {
+		t.Errorf("metrics.address = %q, want :9091", cfg.Metrics.Address)
 	}
 	if len(cfg.Plugins.Chain) != 1 || cfg.Plugins.Chain[0].Name != "add-header" {
 		t.Errorf("unexpected chain: %+v", cfg.Plugins.Chain)

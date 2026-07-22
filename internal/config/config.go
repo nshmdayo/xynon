@@ -18,16 +18,29 @@ const (
 
 type Config struct {
 	Listen            string           `yaml:"listen"`
+	Metrics           MetricsConfig    `yaml:"metrics"`
 	Plugins           PluginsConfig    `yaml:"plugins"`
 	AllowLocalNetwork bool             `yaml:"allow_local_network"`
 	Upstreams         []UpstreamConfig `yaml:"upstreams"`
 }
 
+type MetricsConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Address string `yaml:"address"`
+}
+
 type UpstreamConfig struct {
-	Name        string             `yaml:"name"`
-	Algorithm   string             `yaml:"algorithm"`
-	Servers     []ServerConfig     `yaml:"servers"`
-	HealthCheck HealthCheckConfig  `yaml:"health_check"`
+	Name           string               `yaml:"name"`
+	Algorithm      string               `yaml:"algorithm"`
+	Servers        []ServerConfig       `yaml:"servers"`
+	HealthCheck    HealthCheckConfig    `yaml:"health_check"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+type CircuitBreakerConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	ErrorThreshold int    `yaml:"error_threshold"`
+	Timeout        string `yaml:"timeout"`
 }
 
 type ServerConfig struct {

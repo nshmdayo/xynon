@@ -24,10 +24,14 @@ The workspace is organized as follows:
 The proxy engine is responsible for receiving incoming HTTP requests, executing the plugin chain, and forwarding requests to the upstream server. 
 - **Plugin Chain**: A synchronized list of `plugin.Handler` interfaces. The chain is executed sequentially for each request (`OnRequest`) and in reverse order for each response (`OnResponse`).
 
-### 3.2 Plugin Handlers (`internal/plugin`)
+### 3.2 Upstream Routing & Circuit Breakers (`internal/upstream`)
+Manages backend connection pools, health checking, and routing.
+- **Circuit Breaker**: Detects upstream failures and temporary latency by counting sequential errors. If failures exceed the configured threshold, the breaker trips to `Open` state, and traffic to that backend is halted. A `HalfOpen` state allows periodic probe requests to verify if the upstream has recovered.
+
+### 3.3 Plugin Handlers (`internal/plugin`)
 All plugins, regardless of their underlying execution model, implement the `Handler` interface to ensure uniform processing.
 
-### 3.3 Configuration (`internal/config`)
+### 3.4 Configuration (`internal/config`)
 Configurations are defined in a YAML file (e.g., `config.yaml`).
 
 ## 4. Development Commands
