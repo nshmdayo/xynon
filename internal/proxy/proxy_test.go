@@ -73,7 +73,7 @@ func TestProxy_Passthrough(t *testing.T) {
 
 	reg := &ChainRegistry{}
 	reg.Store(NewChain(nil)) // empty chain → passthrough
-	p := New(reg, false)
+	p := New(reg, false, nil)
 	p.transport = http.DefaultTransport
 
 	req := httptest.NewRequest(http.MethodGet, upstream.URL, nil)
@@ -120,7 +120,7 @@ func TestProxy_HandleTunnel_SSRF(t *testing.T) {
 	reg.Store(NewChain(nil))
 	
 	// Test blocked local access
-	p := New(reg, false)
+	p := New(reg, false, nil)
 	req := httptest.NewRequest(http.MethodConnect, "http://127.0.0.1:80", nil)
 	req.Host = "127.0.0.1:80" // Correctly set r.Host for CONNECT
 	rr := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestProxy_HandleTunnel_SSRF(t *testing.T) {
 	}
 
 	// Test allowed local access
-	pAllowed := New(reg, true)
+	pAllowed := New(reg, true, nil)
 	reqAllowed := httptest.NewRequest(http.MethodConnect, "http://127.0.0.1:12345", nil)
 	reqAllowed.Host = "127.0.0.1:12345"
 	rrAllowed := httptest.NewRecorder()
