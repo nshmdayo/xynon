@@ -113,12 +113,15 @@ else
 fi
 
 # Test 6: Circuit Breaker triggering
+# Use a dedicated IP for circuit breaker tests to avoid rate limiter interference from Test 5
+CB_IP="10.0.0.99"
+export JWT_TOKEN=$(go run scripts/gen_jwt.go)
 echo "Triggering circuit breaker (2 failures)..."
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
 
 # Test 7: Circuit Breaker Open
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
     echo "✅ Circuit Breaker Open test passed"
 else
@@ -130,7 +133,7 @@ fi
 # Test 8: Circuit Breaker Half-Open/Recovery
 echo "Waiting 3 seconds for Circuit Breaker timeout..."
 sleep 3
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "200 OK"; then
     echo "✅ Circuit Breaker Half-Open Recovery test passed"
 else
