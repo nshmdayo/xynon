@@ -22,6 +22,7 @@ type HandleData struct {
 	StatusCode     int  // only used for response handles
 	ShortCircuit   bool // set by short_circuit host function
 	ShortCircuitSC int
+	PluginConfig   []byte
 }
 
 var (

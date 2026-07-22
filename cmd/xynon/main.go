@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"encoding/json"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -69,10 +70,15 @@ func main() {
 		if typ == config.PluginTypeWasm {
 			path += ".wasm"
 		}
+		var cfgBytes []byte
+		if e.Config != nil {
+			cfgBytes, _ = json.Marshal(e.Config)
+		}
 		entries = append(entries, plugin.ChainEntry{
-			Name: e.Name,
-			Type: typ,
-			Path: path,
+			Name:   e.Name,
+			Type:   typ,
+			Path:   path,
+			Config: cfgBytes,
 		})
 	}
 
@@ -110,10 +116,15 @@ func main() {
 					if typ == config.PluginTypeWasm {
 						path += ".wasm"
 					}
+					var cfgBytes []byte
+					if e.Config != nil {
+						cfgBytes, _ = json.Marshal(e.Config)
+					}
 					newEntries = append(newEntries, plugin.ChainEntry{
-						Name: e.Name,
-						Type: typ,
-						Path: path,
+						Name:   e.Name,
+						Type:   typ,
+						Path:   path,
+						Config: cfgBytes,
 					})
 				}
 				return newEntries, nil

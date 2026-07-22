@@ -84,4 +84,29 @@ else
     exit 1
 fi
 
+
+echo "==> Running Test 5: Rate Limiter"
+export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+# We have capacity 5, we already used 2 for token in Test 2 and 4? Wait, each request with the same token/IP uses it.
+# Let us use a unique X-Forwarded-For for this test so we have a fresh bucket.
+IP="10.0.0.5"
+for i in {1..5}; do
+    curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081 >/dev/null
+done
+
+# 6th request should fail with 429
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "HTTP/1.1 429 Too Many Requests"; then
+    if echo "$RESPONSE" | grep -q "Retry-After: 1"; then
+        echo "✅ rate limiter test passed"
+    else
+        echo "❌ rate limiter test failed (missing Retry-After)"
+        exit 1
+    fi
+else
+    echo "❌ rate limiter test failed (not 429)"
+    echo "$RESPONSE"
+    exit 1
+fi
+
 echo "==> All E2E tests passed!"

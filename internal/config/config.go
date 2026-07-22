@@ -64,6 +64,7 @@ type PluginsConfig struct {
 type PluginEntry struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"` // "wasm" or "rpc"
+	Config map[string]any `yaml:"config"`
 }
 
 // Limits holds per-plugin sandbox limits.

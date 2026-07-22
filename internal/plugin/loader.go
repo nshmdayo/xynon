@@ -18,7 +18,7 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
 		if e.Type == config.PluginTypeRPC {
 			p, err = LoadRpcPlugin(ctx, e.Name, e.Path)
 		} else if e.Type == config.PluginTypeWasm {
-			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits)
+			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits, e.Config)
 		} else {
 			err = fmt.Errorf("unknown plugin type %q", e.Type)
 		}
@@ -39,6 +39,7 @@ type ChainEntry struct {
 	Name string
 	Type string
 	Path string
+	Config []byte
 }
 
 // DefaultLimits returns sensible defaults.

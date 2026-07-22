@@ -6,3 +6,9 @@ plugins:
   chain:
     - name: auth
     - name: add-header
+    - name: rate-limit
+      config:
+        key_header: "X-Forwarded-For"
+        capacity: 5
+        refill_rate: 1
+

@@ -6,6 +6,7 @@ Communication between the Go host and the WASM guest is done via explicit memory
 ### Exported Functions
 Exported functions meant to be matched by the guest/plugin ABI must use snake_case matching the ABI expectations:
 - `xynon_abi_version`
+- `get_plugin_config` (Host function)
 - `on_request`
 - `on_response`
 

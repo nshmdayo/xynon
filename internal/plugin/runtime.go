@@ -54,6 +54,9 @@ func NewRuntime(ctx context.Context) (*Runtime, error) {
 		NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(hostComputeHMAC256), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
 		Export(abi.FnComputeHMAC256).
+		NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(hostGetPluginConfig), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+		Export(abi.FnGetPluginConfig).
 		Instantiate(ctx); err != nil {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("runtime: instantiate env: %w", err)
@@ -70,7 +73,7 @@ func (r *Runtime) Close(ctx context.Context) {
 
 // LoadWasmHandler compiles and instantiates the WASM file at path, registers host
 // functions, validates exports, and returns a ready WasmHandler.
-func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits) (*WasmHandler, error) {
+func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits, config []byte) (*WasmHandler, error) {
 	wasmBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("plugin %q: read file: %w", name, err)
@@ -122,7 +125,7 @@ func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits
 	}
 
 	slog.Info("plugin loaded", "name", name)
-	return &WasmHandler{name: name, mod: mod, limits: limits}, nil
+	return &WasmHandler{name: name, mod: mod, limits: limits, config: config}, nil
 }
 
 // ---- host functions -------------------------------------------------------
@@ -228,4 +231,19 @@ func readString(mem api.Memory, ptr, length uint32) string {
 		return ""
 	}
 	return string(b)
+}
+
+func hostGetPluginConfig(_ context.Context, mod api.Module, stack []uint64) {
+	handle, outPtr, outCap := int32(stack[0]), uint32(stack[1]), uint32(stack[2])
+	hd := lookupHandle(handle)
+	if hd == nil || len(hd.PluginConfig) == 0 {
+		stack[0] = 0
+		return
+	}
+	n := uint32(len(hd.PluginConfig))
+	if n > outCap {
+		n = outCap
+	}
+	mod.Memory().Write(outPtr, hd.PluginConfig[:n])
+	stack[0] = uint64(n)
 }

@@ -1,0 +1,15 @@
+commit 4a1bb61f544c94e2c3e07e34b66ff0b52fd66b93
+Merge: 26ca7fd 07a9124
+Author: nish <asrgmt24@gmail.com>
+Date:   Thu Jul 23 00:17:59 2026 +0900
+
+    Merge pull request #10 from nshmdayo/feature/issue-4-loadbalancing
+    
+    Feature: Health Check and Dynamic Load Balancing
+
+commit 07a9124118062ff7cdfea2b6e968714bb98da57d
+Merge: 9109b81 26ca7fd
+Author: nshmdayo <asrgmt24@gmail.com>
+Date:   Thu Jul 23 00:16:18 2026 +0900
+
+    Merge origin/dev into feature/issue-4-loadbalancing (resolve conflicts)
