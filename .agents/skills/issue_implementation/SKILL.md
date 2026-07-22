@@ -20,6 +20,7 @@ The actual implementation (the coding and testing loop) is completely delegated 
 
 ### 2. Requirements Analysis and Design (Design)
 - Analyze the requirements from the fetched Issue contents and confirm the files that need to be changed and the impact on the project architecture.
+- **IMPORTANT: You MUST require explicit user approval immediately before executing `git checkout -b` or creating a new working branch.**
 - Create a new working branch (e.g., `git checkout -b fix/issue-<number>` or `feature/issue-<number>`).
 
 ### 3. Delegate Implementation to Subagent (Subagent 委譲)
