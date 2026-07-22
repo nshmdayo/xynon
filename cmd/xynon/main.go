@@ -10,16 +10,27 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/nshmdayo/xynon/internal/admincli"
 	"github.com/nshmdayo/xynon/internal/config"
 	"github.com/nshmdayo/xynon/internal/plugin"
 	"github.com/nshmdayo/xynon/internal/plugincli"
 	"github.com/nshmdayo/xynon/internal/proxy"
+	"github.com/nshmdayo/xynon/internal/upstream"
 )
 
 func main() {
 	// Dispatch `xynon plugin <subcommand>` before parsing proxy flags.
 	if len(os.Args) >= 2 && os.Args[1] == "plugin" {
 		if err := plugincli.Run(os.Args[2:]); err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Dispatch `xynon admin <subcommand>` before parsing proxy flags.
+	if len(os.Args) >= 2 && os.Args[1] == "admin" {
+		if err := admincli.Run(os.Args[2:]); err != nil {
 			slog.Error(err.Error())
 			os.Exit(1)
 		}
@@ -121,8 +132,15 @@ func main() {
 		}
 	}
 
+	// Initialize upstream manager.
+	upManager, err := upstream.NewManager(ctx, cfg.Upstreams)
+	if err != nil {
+		slog.Error("failed to init upstreams", "err", err)
+		os.Exit(1)
+	}
+
 	// Start proxy server.
-	p := proxy.New(reg, cfg.AllowLocalNetwork)
+	p := proxy.New(reg, cfg.AllowLocalNetwork, upManager)
 	srv := &http.Server{
 		Addr:    cfg.Listen,
 		Handler: p,
@@ -133,6 +151,9 @@ func main() {
 		slog.Info("shutting down")
 		if watcher != nil {
 			watcher.Stop()
+		}
+		if upManager != nil {
+			upManager.StopAll()
 		}
 		_ = srv.Shutdown(context.Background())
 	}()

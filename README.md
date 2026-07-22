@@ -90,10 +90,18 @@ make wasm
 
 指定ディレクトリの TinyGo ソースをビルドし、設定ファイルのプラグインディレクトリに `<ディレクトリ名>.wasm` を出力します。
 
-| 環境変数 | 説明 |
-|----------|------|
-| `TINYGO` | tinygo バイナリのパス（未設定時は PATH から解決） |
-| `XYNON_TINYGO_GOROOT` | TinyGo に渡す GOROOT（デフォルト環境以外のGoを使う場合に指定） |
+	| `TINYGO` | tinygo バイナリのパス（未設定時は PATH から解決） |
+	| `XYNON_TINYGO_GOROOT` | TinyGo に渡す GOROOT（デフォルト環境以外のGoを使う場合に指定） |
+
+## 管理用 CLI
+
+### admin status — バックエンドステータス表示
+
+```bash
+./bin/xynon admin status
+```
+
+設定された各アップストリームのロードバランシング対象バックエンド（サーバー）のヘルスチェック状況（Healthy / Unhealthy）を一覧表示します。
 
 ## 設定ファイル (YAML)
 
@@ -104,6 +112,20 @@ plugins:
   dir: "./examples/plugins"
   chain:
     - name: add-header    # examples/plugins/add-header/add-header.wasm を使用
+
+upstreams:
+  - name: my-backend-cluster
+    algorithm: round_robin
+    servers:
+      - url: http://localhost:8081
+    health_check:
+      active:
+        enabled: true
+        path: "/health"
+        expected_status: 200
+        interval: "10s"
+        timeout: "2s"
+        max_fails: 3
 ```
 
 | フィールド | 必須 | 説明 |
@@ -111,6 +133,7 @@ plugins:
 | `listen` | ✓ | リスンアドレス（例: `:8080`） |
 | `plugins.dir` | ✓ | WASM ファイルが置かれるディレクトリ |
 | `plugins.chain[]` | - | 有効化するプラグインと実行順序 |
+| `upstreams` | - | ロードバランシング・ヘルスチェックを行うバックエンドクラスタの定義 |
 
 ## ホットリロードの動作確認
 

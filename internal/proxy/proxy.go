@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/nshmdayo/xynon/internal/plugin/abi"
+	"github.com/nshmdayo/xynon/internal/upstream"
+	"encoding/json"
 )
 
 // Proxy is an HTTP forward proxy that dispatches to a plugin chain.
@@ -16,24 +18,49 @@ type Proxy struct {
 	registry          *ChainRegistry
 	transport         http.RoundTripper
 	allowLocalNetwork bool
+	upstreams         *upstream.Manager
 }
 
 // New constructs a Proxy using the given chain registry.
-func New(registry *ChainRegistry, allowLocalNetwork bool) *Proxy {
+func New(registry *ChainRegistry, allowLocalNetwork bool, upstreams *upstream.Manager) *Proxy {
 	return &Proxy{
 		registry:          registry,
 		transport:         http.DefaultTransport,
 		allowLocalNetwork: allowLocalNetwork,
+		upstreams:         upstreams,
 	}
 }
 
 // ServeHTTP handles both plain HTTP proxy requests and HTTPS CONNECT tunnels.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/_admin/upstreams" {
+		p.handleAdminUpstreams(w, r)
+		return
+	}
 	if r.Method == http.MethodConnect {
 		p.handleTunnel(w, r)
 		return
 	}
 	p.handleHTTP(w, r)
+}
+
+func (p *Proxy) handleAdminUpstreams(w http.ResponseWriter, r *http.Request) {
+	// Restrict to localhost
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	if ip != "127.0.0.1" && ip != "::1" && ip != "localhost" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	
+	if p.upstreams == nil {
+		http.Error(w, "upstreams not configured", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(p.upstreams.Statuses())
 }
 
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +82,41 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	removeHopByHop(r.Header)
 	r.RequestURI = ""
 
+	var srv *upstream.Server
+	var up *upstream.Upstream
+	if p.upstreams != nil {
+		up = p.upstreams.Get(r.Host)
+		if up != nil {
+			var err error
+			srv, err = up.Balancer.NextServer(r)
+			if err == upstream.ErrNoHealthyBackends {
+				http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			if err == nil && srv != nil {
+				r.URL.Scheme = srv.URL.Scheme
+				r.URL.Host = srv.URL.Host
+				r.Host = srv.URL.Host
+				srv.IncConn()
+				defer srv.DecConn()
+			}
+		}
+	}
+
 	resp, err := p.transport.RoundTrip(r)
+	
+	if up != nil && srv != nil && up.Config().HealthCheck.Passive.Enabled {
+		timeout, _ := time.ParseDuration(up.Config().HealthCheck.Passive.FailTimeout)
+		if timeout == 0 {
+			timeout = 30 * time.Second
+		}
+		if err != nil || resp.StatusCode >= 500 {
+			srv.RecordPassiveFailure(up.Config().HealthCheck.Passive.MaxFails, timeout)
+		} else {
+			srv.RecordPassiveSuccess(timeout)
+		}
+	}
+
 	if err != nil {
 		http.Error(w, "bad gateway: "+err.Error(), http.StatusBadGateway)
 		return

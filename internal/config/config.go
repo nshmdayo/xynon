@@ -17,9 +17,41 @@ const (
 )
 
 type Config struct {
-	Listen            string        `yaml:"listen"`
-	Plugins           PluginsConfig `yaml:"plugins"`
-	AllowLocalNetwork bool          `yaml:"allow_local_network"`
+	Listen            string           `yaml:"listen"`
+	Plugins           PluginsConfig    `yaml:"plugins"`
+	AllowLocalNetwork bool             `yaml:"allow_local_network"`
+	Upstreams         []UpstreamConfig `yaml:"upstreams"`
+}
+
+type UpstreamConfig struct {
+	Name        string             `yaml:"name"`
+	Algorithm   string             `yaml:"algorithm"`
+	Servers     []ServerConfig     `yaml:"servers"`
+	HealthCheck HealthCheckConfig  `yaml:"health_check"`
+}
+
+type ServerConfig struct {
+	URL string `yaml:"url"`
+}
+
+type HealthCheckConfig struct {
+	Active  ActiveCheckConfig  `yaml:"active"`
+	Passive PassiveCheckConfig `yaml:"passive"`
+}
+
+type ActiveCheckConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Path           string `yaml:"path"`
+	ExpectedStatus int    `yaml:"expected_status"`
+	Interval       string `yaml:"interval"`
+	Timeout        string `yaml:"timeout"`
+	MaxFails       int    `yaml:"max_fails"`
+}
+
+type PassiveCheckConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	MaxFails    int    `yaml:"max_fails"`
+	FailTimeout string `yaml:"fail_timeout"`
 }
 
 // PluginsConfig holds plugin directory and the ordered chain.
@@ -79,6 +111,14 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Plugins.Dir == "" {
 		missing = append(missing, "plugins.dir")
+	}
+	for _, u := range cfg.Upstreams {
+		if u.Name == "" {
+			missing = append(missing, "upstreams.name")
+		}
+		if len(u.Servers) == 0 {
+			missing = append(missing, "upstreams.servers")
+		}
 	}
 	if len(missing) > 0 {
 		return errors.New("config: missing required fields: " + strings.Join(missing, ", "))
