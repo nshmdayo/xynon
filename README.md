@@ -1,34 +1,34 @@
 # Xynon
 
-Go 製の HTTP フォワードプロキシ。リクエスト/レスポンス処理を **TinyGo 製 WASM プラグイン** で拡張でき、プロキシを再起動せずに **ホットリロード** でプラグインを差し替えられます。
+An HTTP forward proxy written in Go. You can extend request/response processing with **TinyGo WASM plugins** or **RPC plugins**. The proxy supports **hot-reloading**, allowing you to replace plugins without restarting the proxy.
 
-## 構成
+## Architecture
 
+```text
+cmd/xynon/           <- Proxy CLI entrypoint
+internal/config/     <- Configuration loader
+internal/plugin/     <- WASM runtime, RPC loader, ABI
+internal/plugin/abi/ <- ABI constants & definitions
+internal/proxy/      <- Proxy handler, chain registry, hot-reloading
+internal/upstream/   <- Routing, health checks, circuit breakers
+examples/plugins/    <- Sample plugins
+examples/config.yaml <- Sample configuration
 ```
-cmd/xynon/           ← プロキシの CLI エントリポイント
-internal/config/     ← 設定ローダ
-internal/plugin/     ← WASM ランタイム・ABI・ローダ
-internal/plugin/abi/ ← ABI 定数・ドキュメント
-internal/proxy/      ← プロキシハンドラ・チェーンレジストリ・ホットリロード
-internal/upstream/   ← ルーティング・ヘルスチェック・サーキットブレーカー
-examples/plugins/    ← サンプルプラグイン
-examples/config.yaml ← サンプル設定
-```
 
-## ビルド
+## Build
 
-### プロキシ本体
+### Core Proxy
 
 ```bash
 CGO_ENABLED=0 go build -o bin/xynon ./cmd/xynon
 ```
 
-### プラグイン (TinyGo が必要)
+### WASM Plugins (requires TinyGo)
 
-TinyGo を使用してビルドします。
+Built using TinyGo. To avoid conflicts with the project's `go.mod`, it is recommended to run this from `/tmp` or use the Makefile:
 
 ```bash
-cd /tmp                  # プロジェクト go.mod の干渉を避けるため /tmp で実行
+cd /tmp
 
 tinygo build \
   -o /path/to/xynon/examples/plugins/add-header/add-header.wasm \
@@ -36,83 +36,95 @@ tinygo build \
   /path/to/xynon/examples/plugins/add-header/main.go
 ```
 
-または Makefile ターゲットを使用します（`make` が利用可能な場合）:
+Or using the Makefile:
 
 ```bash
 make wasm
 ```
 
-## 起動
+## Run
 
 ```bash
 ./bin/xynon -config examples/config.yaml
 ```
 
-### フラグ
+### Flags
 
-| フラグ | デフォルト | 説明 |
-|--------|-----------|------|
-| `-config` | `config.yaml` | 設定ファイルパス |
-| `-no-hot-reload` | `false` | ホットリロードを無効化し起動時チェーン固定 |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-config` | `config.yaml` | Path to the configuration file |
+| `-no-hot-reload` | `false` | Disable hot-reloading and keep the initial plugin chain fixed |
 
-## プラグイン管理 CLI
+## Plugin Management CLI
 
-プロキシを起動せずにプラグインを管理するサブコマンド群です。
+These commands manage plugins without starting the proxy server.
 
-### plugin list — 一覧表示
+### plugin list — Show Plugins
 
 ```bash
 ./bin/xynon plugin list -config examples/config.yaml
 ```
 
-プラグインディレクトリの `.wasm` ファイルとチェーン登録状態（順序番号）を表示します。
+Displays plugins in the configured directory and their registration order in the chain.
 
-### plugin add — プラグインを追加
+### plugin add — Add Plugin
 
 ```bash
 ./bin/xynon plugin add -config examples/config.yaml ./path/to/my-plugin.wasm
 ```
 
-指定した WASM ファイルをプラグインディレクトリにコピーし、設定ファイルのチェーン末尾に追加します。同名プラグインが既に登録済みの場合はファイルのみ上書きします。
+Copies the specified plugin file to the plugin directory and appends it to the chain in the configuration file. If a plugin with the same name exists, it overwrites the file.
 
-### plugin remove — プラグインをチェーンから除外
+### plugin remove — Remove Plugin
 
 ```bash
 ./bin/xynon plugin remove -config examples/config.yaml my-plugin
 ```
 
-設定ファイルのチェーンから指定名のプラグインを削除します。WASM ファイル自体は削除されません。
+Removes the specified plugin from the configuration chain. The plugin file itself is not deleted.
 
-### plugin build — TinyGo プラグインをビルド
+### plugin build — Build TinyGo Plugin
 
 ```bash
 ./bin/xynon plugin build -config examples/config.yaml ./examples/plugins/add-header
 ```
 
-指定ディレクトリの TinyGo ソースをビルドし、設定ファイルのプラグインディレクトリに `<ディレクトリ名>.wasm` を出力します。
+Builds TinyGo source code from the specified directory and outputs `<directory-name>.wasm` to the plugin directory in the configuration.
 
-	| `TINYGO` | tinygo バイナリのパス（未設定時は PATH から解決） |
-	| `XYNON_TINYGO_GOROOT` | TinyGo に渡す GOROOT（デフォルト環境以外のGoを使う場合に指定） |
+*   `TINYGO`: Path to the tinygo binary (resolved from PATH if unset).
+*   `XYNON_TINYGO_GOROOT`: GOROOT passed to TinyGo (specify if using a non-default Go environment).
 
-## 管理用 CLI
+## Admin CLI
 
-### admin status — バックエンドステータス表示
+### admin status — Show Backend Status
 
 ```bash
 ./bin/xynon admin status
 ```
 
-設定された各アップストリームのロードバランシング対象バックエンド（サーバー）のヘルスチェック状況（Healthy / Unhealthy）を一覧表示します。
+Displays the health check status (Healthy / Unhealthy) of backend servers configured in upstreams.
 
-## 設定ファイル (YAML)
+## Configuration File (YAML)
 
 ```yaml
 listen: ":8080"
+allow_local_network: true
+metrics:
+  enabled: true
+  address: ":9090"
 
 plugins:
   dir: "./examples/plugins"
   chain:
-    - name: add-header    # examples/plugins/add-header/add-header.wasm を使用
+    - name: auth            # defaults to type: wasm
+    - name: rate-limit
+      type: wasm
+      config:
+        capacity: 5
+        refill_rate: 1
+    - name: my-rpc-plugin
+      type: rpc
+      path: "/path/to/rpc-plugin-binary"
 
 upstreams:
   - name: my-backend-cluster
@@ -131,41 +143,51 @@ upstreams:
         interval: "10s"
         timeout: "2s"
         max_fails: 3
+      passive:
+        enabled: true
+        max_fails: 5
+        fail_timeout: "30s"
 ```
 
-| フィールド | 必須 | 説明 |
-|-----------|------|------|
-| `listen` | ✓ | リスンアドレス（例: `:8080`） |
-| `plugins.dir` | ✓ | WASM ファイルが置かれるディレクトリ |
-| `plugins.chain[]` | - | 有効化するプラグインと実行順序 |
-| `upstreams` | - | ロードバランシング・ヘルスチェック・サーキットブレーカーを行うバックエンドクラスタの定義 |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `listen` | ✓ | Listening address (e.g., `:8080`) |
+| `allow_local_network` | - | Allow proxying to local network addresses |
+| `metrics` | - | Prometheus metrics configuration (`enabled`, `address`) |
+| `plugins.dir` | ✓ | Directory where WASM files are stored |
+| `plugins.chain[]` | - | Plugins to enable and their execution order. Supports `type` (wasm/rpc), `config`, and `path`. |
+| `upstreams` | - | Backend clusters for load balancing, health checks, and circuit breaking |
 
-## ホットリロードの動作確認
+## Hot-Reloading in Action
 
-1. プロキシを起動する:
+1. Start the proxy:
    ```bash
    ./bin/xynon -config examples/config.yaml
    ```
 
-2. 別ターミナルでリクエストを送信する:
+2. Send a request from another terminal:
    ```bash
    curl -x http://localhost:8080 http://httpbin.org/headers
    ```
-   レスポンスヘッダに `X-Xynon: true` が含まれることを確認します。
+   Verify that the response includes headers modified by the plugins (e.g., `X-Xynon: true`).
 
-3. プラグインの WASM ファイルを上書きする（別バージョンのプラグインに差し替え）:
+3. Overwrite a plugin's WASM file (replace with a new version):
    ```bash
    cp new-plugin.wasm examples/plugins/add-header/add-header.wasm
    ```
-   プロキシのログに `hot-reload complete` が表示され、次のリクエストから新バージョンが適用されます。
+   The proxy logs will show `hot-reload complete`, and the new version will be applied to subsequent requests.
 
-4. プロキシは `Ctrl+C` (SIGINT) または SIGTERM でシャットダウンします。
+4. Gracefully shut down the proxy using `Ctrl+C` (SIGINT) or SIGTERM.
 
-## プラグイン開発 (ABI v1)
+## Plugin Development
 
-プラグインは `internal/plugin/abi/abi.go` に記載された ABI を実装します。
+Xynon supports two plugin types: WASM (via wazero) and RPC (via hashicorp/go-plugin).
 
-### 必須エクスポート関数
+### WASM Plugins (ABI v1)
+
+WASM plugins must implement the ABI defined in `internal/plugin/abi/abi.go`.
+
+**Required Exported Functions:**
 
 ```go
 //export xynon_abi_version
@@ -178,21 +200,25 @@ func on_request(handle int32) int32 { /* 0=continue, 1=short-circuit, 2=error */
 func on_response(handle int32) int32 { /* 0=continue, 1=short-circuit, 2=error */ }
 ```
 
-### ホスト関数 (env 名前空間)
+**Host Functions (env namespace):**
 
-| 関数 | シグネチャ | 説明 |
-|------|-----------|------|
-| `get_header` | `(handle, namePtr, nameLen, outPtr, outCap) -> i32` | ヘッダ値を読み取る |
-| `set_header` | `(handle, namePtr, nameLen, valPtr, valLen) -> i32` | ヘッダを設定する |
-| `set_status` | `(handle, status) -> i32` | レスポンスステータスコードを設定する |
-| `short_circuit` | `(handle, status) -> i32` | 指定ステータスで即時応答（on_request のみ有効） |
-| `xynon_log` | `(handle, msgPtr, msgLen) -> i32` | ログ出力 |
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `get_header` | `(handle, namePtr, nameLen, outPtr, outCap) -> i32` | Read a header value |
+| `set_header` | `(handle, namePtr, nameLen, valPtr, valLen) -> i32` | Set a header value |
+| `set_status` | `(handle, status) -> i32` | Set response status code |
+| `short_circuit` | `(handle, status) -> i32` | Respond immediately with status (valid only in on_request) |
+| `xynon_log` | `(handle, msgPtr, msgLen) -> i32` | Write to proxy log |
 
-ハンドルは各フック呼び出しの間のみ有効です。フック終了後に使用するとエラーが返ります。
+Handles are only valid during the duration of each hook call. Using them afterwards returns an error.
 
-## ABI バージョンポリシー
+### RPC Plugins
 
-- ABI バージョンは `internal/plugin/abi/abi.go` の `CurrentVersion` 定数で管理します。
-- ホストは自身がサポートするバージョンのプラグインのみロードします。非対応バージョンはロード時に拒否されます。
-- **破壊的変更**（関数シグネチャ変更・削除）を行う場合は `CurrentVersion` をインクリメントします。
-- **後方互換な追加**（新しいホスト関数の追加）は同一バージョン内で行えます。プラグインは不要なホスト関数をインポートしなくても動作します。
+RPC plugins are standard Go binaries that implement the `hashicorp/go-plugin` interface defined in `internal/plugin/rpc_plugin.go`. They run out-of-process and communicate over gRPC.
+
+## ABI Versioning Policy
+
+- The ABI version is managed by the `CurrentVersion` constant in `internal/plugin/abi/abi.go`.
+- The host only loads plugins that match its supported version. Unsupported versions are rejected at load time.
+- **Breaking changes** (changing or removing function signatures) require incrementing `CurrentVersion`.
+- **Backwards-compatible additions** (adding new host functions) can be done within the same version. Plugins are not required to import unused host functions.
