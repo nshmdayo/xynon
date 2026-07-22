@@ -84,4 +84,22 @@ else
     exit 1
 fi
 
+
+# Test 5: Caching Plugin
+export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+# Request 1
+RESP1=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 111" -x http://localhost:8080 http://localhost:8081/cache-test)
+# Request 2 (should be cached, so X-Rand should be 111 in the body, even if we send 222)
+RESP2=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 222" -x http://localhost:8080 http://localhost:8081/cache-test)
+
+if echo "$RESP1" | grep -q "X-Rand: 111" && echo "$RESP2" | grep -q "X-Rand: 111"; then
+    echo "✅ caching plugin test passed"
+else
+    echo "❌ caching plugin test failed"
+    echo "RESP1: $RESP1"
+    echo "RESP2: $RESP2"
+    exit 1
+fi
+
 echo "==> All E2E tests passed!"
+
