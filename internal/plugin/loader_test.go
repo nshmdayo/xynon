@@ -11,16 +11,18 @@ import (
 	"github.com/nshmdayo/xynon/internal/config"
 )
 
+// TestLoadChain verifies loading a chain of plugins.
 func TestLoadChain(t *testing.T) {
 	// Build the dummy rpc plugin for testing
-	tmpDir, err := os.MkdirTemp("", "loader-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	binPath := filepath.Join(tmpDir, "dummy_rpc")
-	cmd := exec.Command("go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
+	ctx, cancel := context.WithCancel(context.Background())
+	if d, ok := t.Deadline(); ok {
+		ctx, cancel = context.WithDeadline(context.Background(), d)
+	}
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("failed to build dummy rpc plugin: %s\n%v", string(out), err)
@@ -90,7 +92,12 @@ func TestLoadChain_ErrorCleanup(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	binPath := filepath.Join(tmpDir, "dummy_rpc")
-	cmd := exec.Command("go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
+	ctx, cancel := context.WithCancel(context.Background())
+	if d, ok := t.Deadline(); ok {
+		ctx, cancel = context.WithDeadline(context.Background(), d)
+	}
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to build dummy rpc plugin: %v", err)
 	}

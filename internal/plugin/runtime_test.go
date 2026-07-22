@@ -16,6 +16,7 @@ const (
 	noExportWasm = "testdata/no_exports/plugin.wasm"
 )
 
+// TestLoadWasmHandler_Valid tests the functionality of the respective component.
 func TestLoadWasmHandler_Valid(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
@@ -35,6 +36,7 @@ func TestLoadWasmHandler_Valid(t *testing.T) {
 	}
 }
 
+// TestLoadWasmHandler_ABIMismatch tests the functionality of the respective component.
 func TestLoadWasmHandler_ABIMismatch(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
@@ -53,6 +55,7 @@ func TestLoadWasmHandler_ABIMismatch(t *testing.T) {
 	}
 }
 
+// TestLoadWasmHandler_MissingExport tests the functionality of the respective component.
 func TestLoadWasmHandler_MissingExport(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
@@ -71,6 +74,7 @@ func TestLoadWasmHandler_MissingExport(t *testing.T) {
 	}
 }
 
+// TestOnRequest_ContinueAction tests the functionality of the respective component.
 func TestOnRequest_ContinueAction(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
@@ -98,6 +102,7 @@ func TestOnRequest_ContinueAction(t *testing.T) {
 	}
 }
 
+// TestOnRequest_Timeout tests the functionality of the respective component.
 func TestOnRequest_Timeout(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)
@@ -124,6 +129,7 @@ func TestOnRequest_Timeout(t *testing.T) {
 	}
 }
 
+// TestHandle_InvalidAfterFree tests the functionality of the respective component.
 func TestHandle_InvalidAfterFree(t *testing.T) {
 	hd := &HandleData{Kind: HandleRequest, Header: http.Header{}}
 	id := allocHandle(hd)
@@ -135,6 +141,7 @@ func TestHandle_InvalidAfterFree(t *testing.T) {
 	}
 }
 
+// TestOnResponse_ContinueAction tests the functionality of the respective component.
 func TestOnResponse_ContinueAction(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(ctx)

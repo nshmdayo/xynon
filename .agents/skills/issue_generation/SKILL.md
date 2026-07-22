@@ -10,6 +10,7 @@ This Skill provides a workflow to analyze the codebase and documentation within 
 ## Prerequisites
 - The `gh` (GitHub CLI) command is available and authentication is complete.
 - Terminal commands can be executed using the `run_command` tool.
+- The `grep_search` tool is available for searching source code.
 
 ## Execution Steps
 
@@ -32,6 +33,7 @@ Make sure to include the following elements in the body:
 - **Target Files**: Related file paths (with links)
 
 ### 3. Create GitHub Issue (Create)
+**IMPORTANT: You MUST require explicit user approval immediately before executing `gh issue create`.**
 Use the `run_command` tool to execute the `gh issue create` command.
 To safely pass a multi-line body on the terminal, use the `--body-file` option or use a heredoc in the command line as shown in the example below.
 

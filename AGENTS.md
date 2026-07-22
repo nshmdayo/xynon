@@ -44,15 +44,11 @@ Before concluding any task and reporting back to the user, you MUST verify that 
 3. **Documentation Updated:** Any new API endpoints, CLI flags, or architecture changes have been reflected in the corresponding `docs/` or `README.md` files.
 
 ### Agent Skills & Workflows
-Before executing specific tasks, review the following instructions located in `.agents/skills/`:
-*   **Feature Development:** `.agents/skills/feature/SKILL.md` — The 6-step loop methodology for adding new features (including the `/learn` step).
-*   **Testing:** `.agents/skills/testing/SKILL.md` — Instructions for running unit and E2E tests.
-*   **Plugin Scaffold:** `.agents/skills/plugin_scaffold/SKILL.md` — Boilerplate templates for generating WASM and RPC plugins.
-*   **Code Review:** `.agents/skills/code_review/SKILL.md` — Instructions for conducting codebase reviews according to project standards.
-*   **Issue Generation:** `.agents/skills/issue_generation/SKILL.md` — Instructions for identifying issues and creating GitHub Issues via `gh`.
-*   **Issue Implementation:** `.agents/skills/issue_implementation/SKILL.md` — Workflow for analyzing issues, designing solutions, and creating PRs.
-*   **Requirements Definition:** `.agents/skills/requirements_definition/SKILL.md` — Interactive requirement gathering and declarative spec generation.
-*   **Create Skills:** `.agents/skills/create_skills/SKILL.md` — Guidelines for scaffolding new skills.
+Before executing specific tasks, follow these explicit workflow contracts to route tasks by purpose:
+*   **Feature Implementation:** Use `.agents/skills/feature/SKILL.md` for the main loop, delegating to plugin scaffold, testing, and review interfaces.
+*   **Code Review & Testing:** Use `.agents/skills/code_review/SKILL.md` and `.agents/skills/testing/SKILL.md` strictly as sub-contracts.
+*   **Issue Triage & Implementation:** Use `.agents/skills/issue_implementation/SKILL.md` to pass implementation requirements to a subagent.
+*   **Discovery & Scaffolding:** Use `.agents/skills/issue_generation/SKILL.md` for discovering issues, and `.agents/skills/create_skills/SKILL.md` as a constrained scaffolding contract.
 
 ### Build & Compilation
 If your changes involve core proxy logic or WASM plugins, ensure you run the appropriate build commands:

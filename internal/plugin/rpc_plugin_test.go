@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -13,15 +12,17 @@ import (
 	"github.com/nshmdayo/xynon/internal/plugin/abi"
 )
 
+// TestLoadRpcPlugin verifies that an RPC plugin can be compiled, loaded, and interacted with.
 func TestLoadRpcPlugin(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "rpc-plugin-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	binPath := filepath.Join(tmpDir, "dummy_rpc")
-	cmd := exec.Command("go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
+	ctx, cancel := context.WithCancel(context.Background())
+	if d, ok := t.Deadline(); ok {
+		ctx, cancel = context.WithDeadline(context.Background(), d)
+	}
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, "./testdata/dummy_rpc/main.go")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("failed to build dummy rpc plugin: %s\n%v", string(out), err)
@@ -48,7 +49,16 @@ func TestLoadRpcPlugin(t *testing.T) {
 		t.Errorf("expected ActionContinue, got %v", action)
 	}
 	if sc {
+		t.Errorf("expected no short circuit from response")
+	}
+	if scStatus != 0 {
+		t.Errorf("expected scStatus 0 from response")
+	}
+	if sc {
 		t.Errorf("expected no short circuit")
+	}
+	if scStatus != 0 {
+		t.Errorf("expected scStatus 0, got %d", scStatus)
 	}
 	if header.Get("X-Dummy-Request") != "handled" {
 		t.Errorf("header not updated: %v", header)
@@ -63,6 +73,9 @@ func TestLoadRpcPlugin(t *testing.T) {
 	action, sc, scStatus, err = handler.OnRequest(context.Background(), header)
 	if err != nil {
 		t.Fatalf("OnRequest short circuit failed: %v", err)
+	}
+	if action != abi.ActionContinue {
+		t.Errorf("expected ActionContinue, got %v", action)
 	}
 	if !sc {
 		t.Errorf("expected short circuit")
@@ -89,6 +102,12 @@ func TestLoadRpcPlugin(t *testing.T) {
 	if action != abi.ActionContinue {
 		t.Errorf("expected ActionContinue, got %v", action)
 	}
+	if sc {
+		t.Errorf("expected no short circuit from response")
+	}
+	if scStatus != 0 {
+		t.Errorf("expected scStatus 0 from response")
+	}
 	if header.Get("X-Dummy-Response") != "handled" {
 		t.Errorf("header not updated: %v", header)
 	}
@@ -105,6 +124,7 @@ func TestLoadRpcPlugin(t *testing.T) {
 	}
 }
 
+// TestLoadRpcPlugin_InvalidPath verifies that loading from an invalid path returns an error.
 func TestLoadRpcPlugin_InvalidPath(t *testing.T) {
 	_, err := LoadRpcPlugin(context.Background(), "dummy", "/invalid/path/that/does/not/exist")
 	if err == nil {
@@ -123,6 +143,7 @@ func (m *MockHandler) OnResponse(ctx context.Context, header http.Header, status
 }
 func (m *MockHandler) Close(ctx context.Context) error { return nil }
 
+// TestXynonPlugin verifies the internal client and server interface implementations.
 func TestXynonPlugin(t *testing.T) {
 	p := &XynonPlugin{Impl: &MockHandler{}}
 	

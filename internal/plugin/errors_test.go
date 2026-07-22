@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestErrors tests the functionality of the respective component.
 func TestErrors(t *testing.T) {
 	e1 := &ErrTimeout{}
 	if e1.Error() == "" {
@@ -16,11 +17,12 @@ func TestErrors(t *testing.T) {
 		t.Fail()
 	}
 
-	e2 := &ErrExecution{Cause: errors.New("err")}
+	cause := errors.New("err")
+	e2 := &ErrExecution{Cause: cause}
 	if e2.Error() == "" {
 		t.Fail()
 	}
-	if e2.Unwrap() == nil {
+	if !errors.Is(e2, cause) {
 		t.Fail()
 	}
 
