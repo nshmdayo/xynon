@@ -5,6 +5,8 @@ import (
 	"flag"
 	"log/slog"
 	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -130,6 +132,22 @@ func main() {
 			watcher.Start(ctx)
 			slog.Info("hot-reload enabled", "dir", cfg.Plugins.Dir)
 		}
+	}
+
+	// Start metrics server if enabled
+	if cfg.Metrics.Enabled {
+		addr := cfg.Metrics.Address
+		if addr == "" {
+			addr = ":9090"
+		}
+		go func() {
+			metricsMux := http.NewServeMux()
+			metricsMux.Handle("/metrics", promhttp.Handler())
+			slog.Info("metrics server listening", "addr", addr)
+			if err := http.ListenAndServe(addr, metricsMux); err != nil && err != http.ErrServerClosed {
+				slog.Error("metrics server failed", "err", err)
+			}
+		}()
 	}
 
 	// Initialize upstream manager.

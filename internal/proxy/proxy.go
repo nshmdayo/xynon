@@ -64,6 +64,12 @@ func (p *Proxy) handleAdminUpstreams(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
+	w = sw
+	defer func() {
+		RecordMetrics(r.Method, r.URL.Path, sw.statusCode, time.Since(start))
+	}()
 	// Snapshot the current plugin chain once for this request.
 	chain := p.registry.Load()
 
@@ -148,6 +154,12 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
+	w = sw
+	defer func() {
+		RecordMetrics(r.Method, r.URL.Path, sw.statusCode, time.Since(start))
+	}()
 	// Snapshot the current plugin chain for this request.
 	chain := p.registry.Load()
 
@@ -185,7 +197,7 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dst.Close()
 
-	hijacker, ok := w.(http.Hijacker)
+	hijacker, ok := sw.ResponseWriter.(http.Hijacker)
 	if !ok {
 		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
 		return
@@ -251,4 +263,19 @@ func removeHopByHop(h http.Header) {
 	for _, name := range hopByHopHeaders {
 		h.Del(name)
 	}
+}
+
+// statusWriter captures the HTTP status code written by the proxy.
+type statusWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }

@@ -18,9 +18,15 @@ const (
 
 type Config struct {
 	Listen            string           `yaml:"listen"`
+	Metrics           MetricsConfig    `yaml:"metrics"`
 	Plugins           PluginsConfig    `yaml:"plugins"`
 	AllowLocalNetwork bool             `yaml:"allow_local_network"`
 	Upstreams         []UpstreamConfig `yaml:"upstreams"`
+}
+
+type MetricsConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Address string `yaml:"address"`
 }
 
 type UpstreamConfig struct {
