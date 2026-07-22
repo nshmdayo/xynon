@@ -73,6 +73,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		RecordMetrics(r.Method, r.URL.Path, sw.statusCode, time.Since(start))
 	}()
+
 	// Snapshot the current plugin chain once for this request.
 	chain := p.registry.Load()
 
@@ -80,11 +81,39 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// and http.RoundTripper requires the original request to remain unmodified.
 	r = r.Clone(r.Context())
 
+	// 1. Run request hooks
+	if p.processRequestHooks(w, r, chain) {
+		return // short-circuited
+	}
+
+	// Remove hop-by-hop headers before forwarding.
+	removeHopByHop(r.Header)
+	r.RequestURI = ""
+
+	// 2. Forward to upstream
+	resp, err := p.forwardRequest(w, r)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// 3. Run response hooks
+	p.processResponseHooks(r, resp, chain)
+
+	// 4. Send response to client
+	removeHopByHop(resp.Header)
+	copyHeader(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+// processRequestHooks executes request plugins and handles short-circuit responses.
+// Returns true if the request was short-circuited and no further processing is needed.
+func (p *Proxy) processRequestHooks(w http.ResponseWriter, r *http.Request, chain *Chain) bool {
 	r.Header.Set("X-Xynon-Req-Uri", r.URL.RequestURI())
 	r.Header.Set("X-Xynon-Req-Method", r.Method)
 	slog.Info("proxy handling request", "method", r.Method, "uri", r.URL.RequestURI())
 
-	// Run on_request hooks.
 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
 
 	r.Header.Del("X-Xynon-Req-Uri")
@@ -96,20 +125,20 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				w.WriteHeader(scStatus)
 				w.Write(body)
-				return
+				return true
 			}
 		}
 		if retryAfter := r.Header.Get("Retry-After"); retryAfter != "" {
 			w.Header().Set("Retry-After", retryAfter)
 		}
 		http.Error(w, http.StatusText(scStatus), scStatus)
-		return
+		return true
 	}
+	return false
+}
 
-	// Remove hop-by-hop headers before forwarding.
-	removeHopByHop(r.Header)
-	r.RequestURI = ""
-
+// forwardRequest selects an upstream backend, forwards the request, and tracks health/circuit-breaker states.
+func (p *Proxy) forwardRequest(w http.ResponseWriter, r *http.Request) (*http.Response, error) {
 	var srv *upstream.Server
 	var up *upstream.Upstream
 	if p.upstreams != nil {
@@ -119,12 +148,12 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 			srv, err = up.Balancer.NextServer(r)
 			if err == upstream.ErrNoHealthyBackends {
 				http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
-				return
+				return nil, err
 			}
 			if err == nil && srv != nil {
 				if !srv.AcquireCB() {
 					http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
-					return
+					return nil, upstream.ErrNoHealthyBackends
 				}
 				r.URL.Scheme = srv.URL.Scheme
 				r.URL.Host = srv.URL.Host
@@ -161,31 +190,28 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, "bad gateway: "+err.Error(), http.StatusBadGateway)
-		return
+		return nil, err
 	}
-	defer resp.Body.Close()
 
+	return resp, nil
+}
+
+// processResponseHooks prepares the response and executes response plugins.
+func (p *Proxy) processResponseHooks(r *http.Request, resp *http.Response, chain *Chain) {
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	resp.Header.Set("X-Xynon-Res-Body", base64.StdEncoding.EncodeToString(bodyBytes))
-	
 
 	resp.Header.Set("X-Xynon-Res-Status", strconv.Itoa(resp.StatusCode))
 	resp.Header.Set("X-Xynon-Req-Uri", r.URL.RequestURI())
 	resp.Header.Set("X-Xynon-Req-Method", r.Method)
-	// Run on_response hooks.
+
 	p.runOnResponse(r.Context(), chain, resp.Header, resp.StatusCode)
 
 	resp.Header.Del("X-Xynon-Res-Body")
 	resp.Header.Del("X-Xynon-Res-Status")
 	resp.Header.Del("X-Xynon-Req-Uri")
 	resp.Header.Del("X-Xynon-Req-Method")
-
-	// Copy response to client.
-	removeHopByHop(resp.Header)
-	copyHeader(w.Header(), resp.Header)
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
 }
 
 func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
