@@ -24,10 +24,17 @@ type Config struct {
 }
 
 type UpstreamConfig struct {
-	Name        string             `yaml:"name"`
-	Algorithm   string             `yaml:"algorithm"`
-	Servers     []ServerConfig     `yaml:"servers"`
-	HealthCheck HealthCheckConfig  `yaml:"health_check"`
+	Name           string               `yaml:"name"`
+	Algorithm      string               `yaml:"algorithm"`
+	Servers        []ServerConfig       `yaml:"servers"`
+	HealthCheck    HealthCheckConfig    `yaml:"health_check"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+type CircuitBreakerConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	ErrorThreshold int    `yaml:"error_threshold"`
+	Timeout        string `yaml:"timeout"`
 }
 
 type ServerConfig struct {

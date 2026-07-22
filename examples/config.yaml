@@ -6,3 +6,13 @@ plugins:
   chain:
     - name: auth
     - name: add-header
+
+upstreams:
+  - name: localhost:8081
+    algorithm: round_robin
+    circuit_breaker:
+      enabled: true
+      error_threshold: 2
+      timeout: "2s"
+    servers:
+      - url: http://localhost:8081
