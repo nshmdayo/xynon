@@ -94,6 +94,10 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err == nil && srv != nil {
+				if !srv.AcquireCB() {
+					http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
+					return
+				}
 				r.URL.Scheme = srv.URL.Scheme
 				r.URL.Host = srv.URL.Host
 				r.Host = srv.URL.Host
@@ -110,10 +114,20 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		if timeout == 0 {
 			timeout = 30 * time.Second
 		}
-		if err != nil || resp.StatusCode >= 500 {
+		if err != nil || (resp != nil && resp.StatusCode >= 500) {
 			srv.RecordPassiveFailure(up.Config().HealthCheck.Passive.MaxFails, timeout)
 		} else {
 			srv.RecordPassiveSuccess(timeout)
+		}
+	}
+
+	if srv != nil {
+		if err != nil {
+			srv.RecordCBFailure()
+		} else if resp != nil && resp.StatusCode >= 500 {
+			srv.RecordCBFailure()
+		} else {
+			srv.RecordCBSuccess()
 		}
 	}
 

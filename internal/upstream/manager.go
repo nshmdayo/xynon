@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/nshmdayo/xynon/internal/config"
 	"sync"
+	"time"
 )
 
 type Upstream struct {
@@ -50,8 +51,22 @@ func NewManager(ctx context.Context, cfg []config.UpstreamConfig) (*Manager, err
 	}
 	for _, ucfg := range cfg {
 		var servers []*Server
+
 		for _, scfg := range ucfg.Servers {
-			srv, err := NewServer(scfg.URL)
+			var serverCB *CircuitBreaker
+			if ucfg.CircuitBreaker.Enabled {
+				timeout, err := time.ParseDuration(ucfg.CircuitBreaker.Timeout)
+				if err != nil || timeout <= 0 {
+					timeout = 30 * time.Second
+				}
+				threshold := ucfg.CircuitBreaker.ErrorThreshold
+				if threshold <= 0 {
+					threshold = 5
+				}
+				serverCB = NewCircuitBreaker(threshold, timeout)
+			}
+
+			srv, err := NewServer(scfg.URL, serverCB)
 			if err != nil {
 				return nil, err
 			}
