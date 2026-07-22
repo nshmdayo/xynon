@@ -87,27 +87,42 @@ func (ih *IPHash) NextServer(req *http.Request) (*Server, error) {
 		return nil, ErrNoHealthyBackends
 	}
 	
-	var healthyServers []*Server
+	healthyCount := 0
 	for _, srv := range ih.servers {
 		if srv.IsHealthy() {
-			healthyServers = append(healthyServers, srv)
+			healthyCount++
 		}
 	}
 	
-	if len(healthyServers) == 0 {
+	if healthyCount == 0 {
 		return nil, ErrNoHealthyBackends
 	}
 	
-	ip, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		ip = req.RemoteAddr
+	ip := req.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		ip = req.Header.Get("X-Real-IP")
+	}
+	if ip == "" {
+		ip, _, _ = net.SplitHostPort(req.RemoteAddr)
+		if ip == "" {
+			ip = req.RemoteAddr
+		}
 	}
 	
 	h := fnv.New32a()
 	h.Write([]byte(ip))
-	idx := h.Sum32() % uint32(len(healthyServers))
+	idx := h.Sum32() % uint32(healthyCount)
 	
-	return healthyServers[idx], nil
+	for _, srv := range ih.servers {
+		if srv.IsHealthy() {
+			if idx == 0 {
+				return srv, nil
+			}
+			idx--
+		}
+	}
+	
+	return nil, ErrNoHealthyBackends
 }
 
 func NewBalancer(algo string, servers []*Server) Balancer {

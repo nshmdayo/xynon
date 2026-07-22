@@ -83,8 +83,6 @@ func NewManager(ctx context.Context, cfg []config.UpstreamConfig) (*Manager, err
 }
 
 func (m *Manager) Get(name string) *Upstream {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
 	return m.upstreams[name]
 }
 

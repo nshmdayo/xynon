@@ -86,10 +86,7 @@ func (s *Server) RecordPassiveFailure(maxFails int, failTimeout time.Duration) {
 func (s *Server) RecordPassiveSuccess(failTimeout time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := time.Now()
-	if now.Sub(s.lastPassiveCheck) > failTimeout {
-		s.fails = 0
-	}
+	s.fails = 0
 	s.passiveHealthy = true
 }
 

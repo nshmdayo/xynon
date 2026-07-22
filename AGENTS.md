@@ -45,12 +45,11 @@ Before concluding any task and reporting back to the user, you MUST verify that 
 
 ### Agent Skills & Workflows
 Before executing specific tasks, review the following instructions located in `.agents/skills/`:
-*   **Feature Development:** `.agents/skills/feature/SKILL.md` — The 6-step loop methodology for adding new features (including the `/learn` step).
+*   **Code:** `.agents/skills/code/SKILL.md` — Integrated workflow for analyzing issues, feature implementation, Loop Engineering, and creating PRs (including the `/learn` step).
 *   **Testing:** `.agents/skills/testing/SKILL.md` — Instructions for running unit and E2E tests.
 *   **Plugin Scaffold:** `.agents/skills/plugin_scaffold/SKILL.md` — Boilerplate templates for generating WASM and RPC plugins.
 *   **Code Review:** `.agents/skills/code_review/SKILL.md` — Instructions for conducting codebase reviews according to project standards.
 *   **Issue Generation:** `.agents/skills/issue_generation/SKILL.md` — Instructions for identifying issues and creating GitHub Issues via `gh`.
-*   **Issue Implementation:** `.agents/skills/issue_implementation/SKILL.md` — Workflow for analyzing issues, designing solutions, and creating PRs.
 *   **Requirements Definition:** `.agents/skills/requirements_definition/SKILL.md` — Interactive requirement gathering and declarative spec generation.
 *   **Create Skills:** `.agents/skills/create_skills/SKILL.md` — Guidelines for scaffolding new skills.
 
