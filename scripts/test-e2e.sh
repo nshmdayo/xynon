@@ -7,6 +7,14 @@ set -e
 TEST_CONFIG="$(mktemp /tmp/xynon-e2e-config.XXXXXX.yaml)"
 sed 's/refill_rate: [0-9]*/refill_rate: 0/' examples/config.yaml > "$TEST_CONFIG"
 
+# Install cleanup trap immediately so the temp file is removed even if
+# make build, make wasm, or server startup fails.
+cleanup() {
+    kill ${PROXY_PID:-} ${ECHO_PID:-} 2>/dev/null || true
+    rm -f "$TEST_CONFIG"
+}
+trap cleanup EXIT
+
 echo "==> Building proxy..."
 make build
 
@@ -20,9 +28,6 @@ ECHO_PID=$!
 echo "==> Starting proxy..."
 ./bin/xynon -config "$TEST_CONFIG" &
 PROXY_PID=$!
-
-# Ensure processes are killed on exit
-trap 'kill $PROXY_PID $ECHO_PID 2>/dev/null; rm -f "$TEST_CONFIG"' EXIT
 
 # Wait for proxy and echo server to start
 echo "==> Waiting for services to start..."
