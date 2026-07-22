@@ -76,6 +76,7 @@ const (
 	FnShortCircuit    = "short_circuit"
 	FnLog             = "xynon_log"
 	FnComputeHMAC256  = "compute_hmac_sha256"
+	FnGetPluginConfig = "get_plugin_config"
 
 	// Plugin export names.
 	ExportABIVersion = "xynon_abi_version"

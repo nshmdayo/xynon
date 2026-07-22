@@ -75,10 +75,10 @@ type PluginsConfig struct {
 
 // PluginEntry identifies one plugin in the chain.
 type PluginEntry struct {
-	Name   string            `yaml:"name"`
-	Type   string            `yaml:"type"` // "wasm" or "rpc"
-	Path   string            `yaml:"path"`
-	Config map[string]string `yaml:"config"`
+	Name   string         `yaml:"name"`
+	Type   string         `yaml:"type"` // "wasm" or "rpc"
+	Path   string         `yaml:"path"`
+	Config map[string]any `yaml:"config"`
 }
 
 // Limits holds per-plugin sandbox limits.

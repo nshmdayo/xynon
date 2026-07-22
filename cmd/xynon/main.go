@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"os"
+	"encoding/json"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -74,11 +75,15 @@ func main() {
 				path += ".wasm"
 			}
 		}
+		var cfgBytes []byte
+		if e.Config != nil {
+			cfgBytes, _ = json.Marshal(e.Config)
+		}
 		entries = append(entries, plugin.ChainEntry{
 			Name:   e.Name,
 			Type:   typ,
 			Path:   path,
-			Config: e.Config,
+			Config: cfgBytes,
 		})
 	}
 
@@ -119,11 +124,15 @@ func main() {
 							path += ".wasm"
 						}
 					}
+					var cfgBytes []byte
+					if e.Config != nil {
+						cfgBytes, _ = json.Marshal(e.Config)
+					}
 					newEntries = append(newEntries, plugin.ChainEntry{
 						Name:   e.Name,
 						Type:   typ,
 						Path:   path,
-						Config: e.Config,
+						Config: cfgBytes,
 					})
 				}
 				return newEntries, nil

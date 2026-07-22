@@ -1,6 +1,20 @@
 #!/bin/bash
 set -e
 
+# Generate a test-specific config with refill_rate: 0 to avoid wall-clock
+# dependence in the rate-limit test (token refill during sequential curls
+# could make the 6th request pass on slow CI).
+TEST_CONFIG="$(mktemp /tmp/xynon-e2e-config.XXXXXX.yaml)"
+sed 's/refill_rate: [0-9]*/refill_rate: 0/' examples/config.yaml > "$TEST_CONFIG"
+
+# Install cleanup trap immediately so the temp file is removed even if
+# make build, make wasm, or server startup fails.
+cleanup() {
+    kill ${PROXY_PID:-} ${ECHO_PID:-} 2>/dev/null || true
+    rm -f "$TEST_CONFIG"
+}
+trap cleanup EXIT
+
 echo "==> Building proxy..."
 make build
 
@@ -12,11 +26,8 @@ go run scripts/echo.go &
 ECHO_PID=$!
 
 echo "==> Starting proxy..."
-./bin/xynon -config examples/config.yaml &
+./bin/xynon -config "$TEST_CONFIG" &
 PROXY_PID=$!
-
-# Ensure processes are killed on exit
-trap 'kill $PROXY_PID $ECHO_PID 2>/dev/null' EXIT
 
 # Wait for proxy and echo server to start
 echo "==> Waiting for services to start..."
@@ -38,7 +49,8 @@ else
 fi
 
 # Test 2: auth plugin with token (expect 200) + add-header plugin
-export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
 RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "X-Xynon: true"; then
     echo "✅ auth plugin (with token) & add-header plugin test passed"
@@ -84,12 +96,44 @@ else
     exit 1
 fi
 
-# Test 5: Caching Plugin
-export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+# Test 5: Rate Limiter
+echo "==> Running Test 5: Rate Limiter"
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
+# Use a unique X-Forwarded-For for this test so we have a fresh bucket.
+IP="10.0.0.5"
+for idx in 1 2 3 4 5; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081)
+    if [ "$STATUS" != "200" ]; then
+        echo "❌ rate limiter test failed (request $idx returned $STATUS, expected 200)"
+        exit 1
+    fi
+done
+
+# 6th request should fail with 429
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081)
+if echo "$RESPONSE" | grep -q "HTTP/1.1 429 Too Many Requests"; then
+    if echo "$RESPONSE" | grep -q "Retry-After: 1"; then
+        echo "✅ rate limiter test passed"
+    else
+        echo "❌ rate limiter test failed (missing Retry-After)"
+        exit 1
+    fi
+else
+    echo "❌ rate limiter test failed (not 429)"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# Test 6: Caching Plugin
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
+# Use a unique X-Forwarded-For so we don't hit the rate limiter
+CACHE_IP="10.0.0.6"
 # Request 1
-RESP1=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 111" -x http://localhost:8080 http://localhost:8081/cache-test)
+RESP1=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 111" -H "X-Forwarded-For: $CACHE_IP" -x http://localhost:8080 http://localhost:8081/cache-test)
 # Request 2 (should be cached, so X-Rand should be 111 in the body, even if we send 222)
-RESP2=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 222" -x http://localhost:8080 http://localhost:8081/cache-test)
+RESP2=$(curl -s -H "Authorization: Bearer $JWT_TOKEN" -H "X-Rand: 222" -H "X-Forwarded-For: $CACHE_IP" -x http://localhost:8080 http://localhost:8081/cache-test)
 
 if echo "$RESP1" | grep -q "X-Rand: 111" && echo "$RESP2" | grep -q "X-Rand: 111"; then
     echo "✅ caching plugin test passed"
@@ -100,14 +144,18 @@ else
     exit 1
 fi
 
-# Test 6: Circuit Breaker triggering
-# Use Cache-Control: no-cache to bypass the caching plugin for circuit breaker tests
+# Test 7: Circuit Breaker triggering
+# Use a dedicated IP for circuit breaker tests to avoid rate limiter interference
+# Use Cache-Control: no-cache to bypass the caching plugin
+CB_IP="10.0.0.99"
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
 echo "Triggering circuit breaker (2 failures)..."
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
 
-# Test 7: Circuit Breaker Open
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
+# Test 8: Circuit Breaker Open
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
     echo "✅ Circuit Breaker Open test passed"
 else
@@ -116,10 +164,10 @@ else
     exit 1
 fi
 
-# Test 8: Circuit Breaker Half-Open/Recovery
+# Test 9: Circuit Breaker Half-Open/Recovery
 echo "Waiting 3 seconds for Circuit Breaker timeout..."
 sleep 3
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "200 OK"; then
     echo "✅ Circuit Breaker Half-Open Recovery test passed"
 else
@@ -129,4 +177,3 @@ else
 fi
 
 echo "==> All E2E tests passed!"
-

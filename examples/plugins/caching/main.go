@@ -4,7 +4,7 @@ package main
 
 import (
 	"container/list"
-	"os"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +29,9 @@ func short_circuit(handle, status int32) int32
 
 //go:wasmimport env xynon_log
 func xynon_log(handle, msgPtr, msgLen int32) int32
+
+//go:wasmimport env get_plugin_config
+func get_plugin_config(handle, outPtr, outCap int32) int32
 
 // ---- Helpers ---------------------------------------------------------------
 func strPtr(s string) (int32, int32) {
@@ -67,6 +70,23 @@ func logMsg(msg string) {
 	xynon_log(0, p, l)
 }
 
+func getPluginConfig(handle int32) []byte {
+	outBuf := make([]byte, 1024)
+	outPtr := int32(uintptr(unsafe.Pointer(&outBuf[0])))
+	outCap := int32(len(outBuf))
+
+	actualLen := get_plugin_config(handle, outPtr, outCap)
+	if actualLen <= 0 {
+		return nil
+	}
+
+	if actualLen > outCap {
+		actualLen = outCap
+	}
+
+	return outBuf[:actualLen]
+}
+
 // ---- Cache Logic -----------------------------------------------------------
 type cacheEntry struct {
 	key        string
@@ -75,21 +95,40 @@ type cacheEntry struct {
 	expiresAt  int64
 }
 
+type Config struct {
+	MaxSize    string `json:"max_size"`
+	DefaultTTL string `json:"default_ttl"`
+}
+
 var (
-	cacheList = list.New()
-	cacheMap  = make(map[string]*list.Element)
-	maxSize   = 100
-	defTTL    = int64(60)
+	cacheList   = list.New()
+	cacheMap    = make(map[string]*list.Element)
+	maxSize     = 100
+	defTTL      = int64(60)
+	cfgLoaded   = false
 )
 
-func init() {
-	if ms := os.Getenv("max_size"); ms != "" {
-		if v, err := strconv.Atoi(ms); err == nil && v > 0 {
+func loadConfig(handle int32) {
+	if cfgLoaded {
+		return
+	}
+	cfgLoaded = true
+
+	cfgData := getPluginConfig(handle)
+	if len(cfgData) == 0 {
+		return
+	}
+	var cfg Config
+	if err := json.Unmarshal(cfgData, &cfg); err != nil {
+		return
+	}
+	if cfg.MaxSize != "" {
+		if v, err := strconv.Atoi(cfg.MaxSize); err == nil && v > 0 {
 			maxSize = v
 		}
 	}
-	if dt := os.Getenv("default_ttl"); dt != "" {
-		if v, err := strconv.Atoi(dt); err == nil && v > 0 {
+	if cfg.DefaultTTL != "" {
+		if v, err := strconv.Atoi(cfg.DefaultTTL); err == nil && v > 0 {
 			defTTL = int64(v)
 		}
 	}
@@ -102,6 +141,8 @@ func xynon_abi_version() int32 { return 1 }
 
 //export on_request
 func on_request(handle int32) int32 {
+	loadConfig(handle)
+
 	method := getHeader(handle, "X-Xynon-Req-Method")
 	cc := getHeader(handle, "Cache-Control")
 	uri := getHeader(handle, "X-Xynon-Req-Uri")
@@ -131,6 +172,8 @@ func on_request(handle int32) int32 {
 
 //export on_response
 func on_response(handle int32) int32 {
+	loadConfig(handle)
+
 	method := getHeader(handle, "X-Xynon-Req-Method")
 	cc := getHeader(handle, "Cache-Control")
 	uri := getHeader(handle, "X-Xynon-Req-Uri")

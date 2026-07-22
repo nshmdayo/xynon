@@ -20,6 +20,7 @@ type WasmHandler struct {
 	name   string
 	mod    api.Module
 	limits Limits
+	config []byte
 }
 
 // Name returns the plugin's declared name.
@@ -36,7 +37,7 @@ func (p *WasmHandler) OnRequest(ctx context.Context, header http.Header) (abi.Ac
 	if header == nil {
 		header = make(http.Header)
 	}
-	hd := &HandleData{Kind: HandleRequest, Header: header}
+	hd := &HandleData{Kind: HandleRequest, Header: header, PluginConfig: p.config}
 	return p.callHook(ctx, abi.ExportOnRequest, hd)
 }
 
@@ -45,7 +46,7 @@ func (p *WasmHandler) OnResponse(ctx context.Context, header http.Header, status
 	if header == nil {
 		header = make(http.Header)
 	}
-	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode}
+	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode, PluginConfig: p.config}
 	return p.callHook(ctx, abi.ExportOnResponse, hd)
 }
 

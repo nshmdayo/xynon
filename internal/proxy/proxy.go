@@ -99,6 +99,9 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if retryAfter := r.Header.Get("Retry-After"); retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
 		http.Error(w, http.StatusText(scStatus), scStatus)
 		return
 	}
@@ -201,6 +204,9 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	// Run on_request hooks for CONNECT requests.
 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
 	if action == abi.ActionShortCircuit || shortCircuit {
+		if retryAfter := r.Header.Get("Retry-After"); retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
 		http.Error(w, http.StatusText(scStatus), scStatus)
 		return
 	}

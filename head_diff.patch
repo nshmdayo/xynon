@@ -1,0 +1,320 @@
+diff --git a/cmd/xynon/main.go b/cmd/xynon/main.go
+index 4345f7b..cfbd4e7 100644
+--- a/cmd/xynon/main.go
++++ b/cmd/xynon/main.go
+@@ -6,6 +6,7 @@ import (
+ 	"log/slog"
+ 	"net/http"
+ 	"os"
++	"encoding/json"
+ 	"os/signal"
+ 	"path/filepath"
+ 	"syscall"
+@@ -69,10 +70,17 @@ func main() {
+ 		if typ == config.PluginTypeWasm {
+ 			path += ".wasm"
+ 		}
++		var cfgBytes []byte
++		if e.Config != nil {
++			import_json := true
++			_ = import_json
++			cfgBytes, _ = json.Marshal(e.Config)
++		}
+ 		entries = append(entries, plugin.ChainEntry{
+-			Name: e.Name,
+-			Type: typ,
+-			Path: path,
++			Name:   e.Name,
++			Type:   typ,
++			Path:   path,
++			Config: cfgBytes,
+ 		})
+ 	}
+ 
+@@ -110,10 +118,15 @@ func main() {
+ 					if typ == config.PluginTypeWasm {
+ 						path += ".wasm"
+ 					}
++					var cfgBytes []byte
++					if e.Config != nil {
++						cfgBytes, _ = json.Marshal(e.Config)
++					}
+ 					newEntries = append(newEntries, plugin.ChainEntry{
+-						Name: e.Name,
+-						Type: typ,
+-						Path: path,
++						Name:   e.Name,
++						Type:   typ,
++						Path:   path,
++						Config: cfgBytes,
+ 					})
+ 				}
+ 				return newEntries, nil
+diff --git a/examples/config.yaml b/examples/config.yaml
+index 8efa9b9..db7f03d 100644
+--- a/examples/config.yaml
++++ b/examples/config.yaml
+@@ -6,3 +6,9 @@ plugins:
+   chain:
+     - name: auth
+     - name: add-header
++    - name: rate-limit
++      config:
++        key_header: "X-Forwarded-For"
++        capacity: 5
++        refill_rate: 1
++
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 80da13c..85f2828 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -64,6 +64,7 @@ type PluginsConfig struct {
+ type PluginEntry struct {
+ 	Name string `yaml:"name"`
+ 	Type string `yaml:"type"` // "wasm" or "rpc"
++	Config map[string]any `yaml:"config"`
+ }
+ 
+ // Limits holds per-plugin sandbox limits.
+diff --git a/internal/plugin/abi/abi.go b/internal/plugin/abi/abi.go
+index c0c6174..463ed60 100644
+--- a/internal/plugin/abi/abi.go
++++ b/internal/plugin/abi/abi.go
+@@ -76,6 +76,7 @@ const (
+ 	FnShortCircuit    = "short_circuit"
+ 	FnLog             = "xynon_log"
+ 	FnComputeHMAC256  = "compute_hmac_sha256"
++	FnGetPluginConfig = "get_plugin_config"
+ 
+ 	// Plugin export names.
+ 	ExportABIVersion = "xynon_abi_version"
+diff --git a/internal/plugin/handle.go b/internal/plugin/handle.go
+index 015674f..3b99065 100644
+--- a/internal/plugin/handle.go
++++ b/internal/plugin/handle.go
+@@ -22,6 +22,7 @@ type HandleData struct {
+ 	StatusCode     int  // only used for response handles
+ 	ShortCircuit   bool // set by short_circuit host function
+ 	ShortCircuitSC int
++	PluginConfig   []byte
+ }
+ 
+ var (
+diff --git a/internal/plugin/loader.go b/internal/plugin/loader.go
+index 8406fa4..c0b48ff 100644
+--- a/internal/plugin/loader.go
++++ b/internal/plugin/loader.go
+@@ -18,7 +18,7 @@ func LoadChain(ctx context.Context, rt *Runtime, entries []ChainEntry, limits Li
+ 		if e.Type == config.PluginTypeRPC {
+ 			p, err = LoadRpcPlugin(ctx, e.Name, e.Path)
+ 		} else if e.Type == config.PluginTypeWasm {
+-			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits)
++			p, err = rt.LoadWasmHandler(ctx, e.Name, e.Path, limits, e.Config)
+ 		} else {
+ 			err = fmt.Errorf("unknown plugin type %q", e.Type)
+ 		}
+@@ -39,6 +39,7 @@ type ChainEntry struct {
+ 	Name string
+ 	Type string
+ 	Path string
++	Config []byte
+ }
+ 
+ // DefaultLimits returns sensible defaults.
+diff --git a/internal/plugin/plugin.go b/internal/plugin/plugin.go
+index 3205a43..3326a2d 100644
+--- a/internal/plugin/plugin.go
++++ b/internal/plugin/plugin.go
+@@ -20,6 +20,7 @@ type WasmHandler struct {
+ 	name   string
+ 	mod    api.Module
+ 	limits Limits
++	config []byte
+ }
+ 
+ // Name returns the plugin's declared name.
+@@ -36,7 +37,7 @@ func (p *WasmHandler) OnRequest(ctx context.Context, header http.Header) (abi.Ac
+ 	if header == nil {
+ 		header = make(http.Header)
+ 	}
+-	hd := &HandleData{Kind: HandleRequest, Header: header}
++	hd := &HandleData{Kind: HandleRequest, Header: header, PluginConfig: p.config}
+ 	return p.callHook(ctx, abi.ExportOnRequest, hd)
+ }
+ 
+@@ -45,7 +46,7 @@ func (p *WasmHandler) OnResponse(ctx context.Context, header http.Header, status
+ 	if header == nil {
+ 		header = make(http.Header)
+ 	}
+-	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode}
++	hd := &HandleData{Kind: HandleResponse, Header: header, StatusCode: statusCode, PluginConfig: p.config}
+ 	return p.callHook(ctx, abi.ExportOnResponse, hd)
+ }
+ 
+diff --git a/internal/plugin/runtime.go b/internal/plugin/runtime.go
+index 26e7b02..5a767be 100644
+--- a/internal/plugin/runtime.go
++++ b/internal/plugin/runtime.go
+@@ -54,6 +54,9 @@ func NewRuntime(ctx context.Context) (*Runtime, error) {
+ 		NewFunctionBuilder().
+ 		WithGoModuleFunction(api.GoModuleFunc(hostComputeHMAC256), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
+ 		Export(abi.FnComputeHMAC256).
++		NewFunctionBuilder().
++		WithGoModuleFunction(api.GoModuleFunc(hostGetPluginConfig), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).
++		Export(abi.FnGetPluginConfig).
+ 		Instantiate(ctx); err != nil {
+ 		_ = rt.Close(ctx)
+ 		return nil, fmt.Errorf("runtime: instantiate env: %w", err)
+@@ -70,7 +73,7 @@ func (r *Runtime) Close(ctx context.Context) {
+ 
+ // LoadWasmHandler compiles and instantiates the WASM file at path, registers host
+ // functions, validates exports, and returns a ready WasmHandler.
+-func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits) (*WasmHandler, error) {
++func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits, config []byte) (*WasmHandler, error) {
+ 	wasmBytes, err := os.ReadFile(path)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("plugin %q: read file: %w", name, err)
+@@ -122,7 +125,7 @@ func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits
+ 	}
+ 
+ 	slog.Info("plugin loaded", "name", name)
+-	return &WasmHandler{name: name, mod: mod, limits: limits}, nil
++	return &WasmHandler{name: name, mod: mod, limits: limits, config: config}, nil
+ }
+ 
+ // ---- host functions -------------------------------------------------------
+@@ -229,3 +232,18 @@ func readString(mem api.Memory, ptr, length uint32) string {
+ 	}
+ 	return string(b)
+ }
++
++func hostGetPluginConfig(_ context.Context, mod api.Module, stack []uint64) {
++	handle, outPtr, outCap := int32(stack[0]), uint32(stack[1]), uint32(stack[2])
++	hd := lookupHandle(handle)
++	if hd == nil || len(hd.PluginConfig) == 0 {
++		stack[0] = 0
++		return
++	}
++	n := uint32(len(hd.PluginConfig))
++	if n > outCap {
++		n = outCap
++	}
++	mod.Memory().Write(outPtr, hd.PluginConfig[:n])
++	stack[0] = uint64(n)
++}
+diff --git a/internal/plugin/runtime_test.go b/internal/plugin/runtime_test.go
+index 8d91699..19f9690 100644
+--- a/internal/plugin/runtime_test.go
++++ b/internal/plugin/runtime_test.go
+@@ -25,7 +25,7 @@ func TestLoadWasmHandler_Valid(t *testing.T) {
+ 	}
+ 	defer rt.Close(ctx)
+ 
+-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
++	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
+ 	if err != nil {
+ 		t.Fatalf("unexpected error: %v", err)
+ 	}
+@@ -45,7 +45,7 @@ func TestLoadWasmHandler_ABIMismatch(t *testing.T) {
+ 	}
+ 	defer rt.Close(ctx)
+ 
+-	_, err = rt.LoadWasmHandler(ctx, "bad_abi", badABIWasm, Limits{})
++	_, err = rt.LoadWasmHandler(ctx, "bad_abi", badABIWasm, Limits{}, nil)
+ 	if err == nil {
+ 		t.Fatal("expected ABI version error")
+ 	}
+@@ -64,7 +64,7 @@ func TestLoadWasmHandler_MissingExport(t *testing.T) {
+ 	}
+ 	defer rt.Close(ctx)
+ 
+-	_, err = rt.LoadWasmHandler(ctx, "no_exports", noExportWasm, Limits{})
++	_, err = rt.LoadWasmHandler(ctx, "no_exports", noExportWasm, Limits{}, nil)
+ 	if err == nil {
+ 		t.Fatal("expected missing export error")
+ 	}
+@@ -83,7 +83,7 @@ func TestOnRequest_ContinueAction(t *testing.T) {
+ 	}
+ 	defer rt.Close(ctx)
+ 
+-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
++	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -116,7 +116,7 @@ func TestOnRequest_Timeout(t *testing.T) {
+ 	cancelCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+ 	cancel()
+ 
+-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond})
++	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond}, nil)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -150,7 +150,7 @@ func TestOnResponse_ContinueAction(t *testing.T) {
+ 	}
+ 	defer rt.Close(ctx)
+ 
+-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
++	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/internal/proxy/proxy.go b/internal/proxy/proxy.go
+index ca53c20..f766086 100644
+--- a/internal/proxy/proxy.go
++++ b/internal/proxy/proxy.go
+@@ -74,6 +74,9 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
+ 	// Run on_request hooks.
+ 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
+ 	if action == abi.ActionShortCircuit || shortCircuit {
++		if retryAfter := r.Header.Get("Retry-After"); retryAfter != "" {
++			w.Header().Set("Retry-After", retryAfter)
++		}
+ 		http.Error(w, http.StatusText(scStatus), scStatus)
+ 		return
+ 	}
+@@ -143,6 +146,9 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
+ 	// Run on_request hooks for CONNECT requests.
+ 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
+ 	if action == abi.ActionShortCircuit || shortCircuit {
++		if retryAfter := r.Header.Get("Retry-After"); retryAfter != "" {
++			w.Header().Set("Retry-After", retryAfter)
++		}
+ 		http.Error(w, http.StatusText(scStatus), scStatus)
+ 		return
+ 	}
+diff --git a/scripts/test-e2e.sh b/scripts/test-e2e.sh
+index 6d3be3c..8f23593 100755
+--- a/scripts/test-e2e.sh
++++ b/scripts/test-e2e.sh
+@@ -84,4 +84,29 @@ else
+     exit 1
+ fi
+ 
++
++echo "==> Running Test 5: Rate Limiter"
++export JWT_TOKEN=$(go run scripts/gen_jwt.go)
++# We have capacity 5, we already used 2 for token in Test 2 and 4? Wait, each request with the same token/IP uses it.
++# Let us use a unique X-Forwarded-For for this test so we have a fresh bucket.
++IP="10.0.0.5"
++for i in {1..5}; do
++    curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081 >/dev/null
++done
++
++# 6th request should fail with 429
++RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $IP" -x http://localhost:8080 http://localhost:8081)
++if echo "$RESPONSE" | grep -q "HTTP/1.1 429 Too Many Requests"; then
++    if echo "$RESPONSE" | grep -q "Retry-After: 1"; then
++        echo "✅ rate limiter test passed"
++    else
++        echo "❌ rate limiter test failed (missing Retry-After)"
++        exit 1
++    fi
++else
++    echo "❌ rate limiter test failed (not 429)"
++    echo "$RESPONSE"
++    exit 1
++fi
++
+ echo "==> All E2E tests passed!"

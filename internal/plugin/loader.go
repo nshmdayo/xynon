@@ -39,7 +39,7 @@ type ChainEntry struct {
 	Name   string
 	Type   string
 	Path   string
-	Config map[string]string
+	Config []byte
 }
 
 // DefaultLimits returns sensible defaults.
