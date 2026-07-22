@@ -67,14 +67,18 @@ func main() {
 		if typ == "" {
 			typ = config.PluginTypeWasm
 		}
-		path := filepath.Join(cfg.Plugins.Dir, e.Name)
-		if typ == config.PluginTypeWasm {
-			path += ".wasm"
+		path := e.Path
+		if path == "" {
+			path = filepath.Join(cfg.Plugins.Dir, e.Name)
+			if typ == config.PluginTypeWasm {
+				path += ".wasm"
+			}
 		}
 		entries = append(entries, plugin.ChainEntry{
-			Name: e.Name,
-			Type: typ,
-			Path: path,
+			Name:   e.Name,
+			Type:   typ,
+			Path:   path,
+			Config: e.Config,
 		})
 	}
 
@@ -108,14 +112,18 @@ func main() {
 					if typ == "" {
 						typ = config.PluginTypeWasm
 					}
-					path := filepath.Join(newCfg.Plugins.Dir, e.Name)
-					if typ == config.PluginTypeWasm {
-						path += ".wasm"
+					path := e.Path
+					if path == "" {
+						path = filepath.Join(newCfg.Plugins.Dir, e.Name)
+						if typ == config.PluginTypeWasm {
+							path += ".wasm"
+						}
 					}
 					newEntries = append(newEntries, plugin.ChainEntry{
-						Name: e.Name,
-						Type: typ,
-						Path: path,
+						Name:   e.Name,
+						Type:   typ,
+						Path:   path,
+						Config: e.Config,
 					})
 				}
 				return newEntries, nil

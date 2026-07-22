@@ -10,7 +10,10 @@ import (
 
 	"github.com/nshmdayo/xynon/internal/plugin/abi"
 	"github.com/nshmdayo/xynon/internal/upstream"
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"strconv"
 )
 
 // Proxy is an HTTP forward proxy that dispatches to a plugin chain.
@@ -77,9 +80,25 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// and http.RoundTripper requires the original request to remain unmodified.
 	r = r.Clone(r.Context())
 
+	r.Header.Set("X-Xynon-Req-Uri", r.URL.RequestURI())
+	r.Header.Set("X-Xynon-Req-Method", r.Method)
+	slog.Info("proxy handling request", "method", r.Method, "uri", r.URL.RequestURI())
+
 	// Run on_request hooks.
 	action, shortCircuit, scStatus := p.runOnRequest(r.Context(), chain, r.Header)
+
+	r.Header.Del("X-Xynon-Req-Uri")
+	r.Header.Del("X-Xynon-Req-Method")
+
 	if action == abi.ActionShortCircuit || shortCircuit {
+		if bodyB64 := r.Header.Get("X-Xynon-Res-Body"); bodyB64 != "" {
+			body, err := base64.StdEncoding.DecodeString(bodyB64)
+			if err == nil {
+				w.WriteHeader(scStatus)
+				w.Write(body)
+				return
+			}
+		}
 		http.Error(w, http.StatusText(scStatus), scStatus)
 		return
 	}
@@ -143,8 +162,21 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	resp.Header.Set("X-Xynon-Res-Body", base64.StdEncoding.EncodeToString(bodyBytes))
+	
+
+	resp.Header.Set("X-Xynon-Res-Status", strconv.Itoa(resp.StatusCode))
+	resp.Header.Set("X-Xynon-Req-Uri", r.URL.RequestURI())
+	resp.Header.Set("X-Xynon-Req-Method", r.Method)
 	// Run on_response hooks.
 	p.runOnResponse(r.Context(), chain, resp.Header, resp.StatusCode)
+
+	resp.Header.Del("X-Xynon-Res-Body")
+	resp.Header.Del("X-Xynon-Res-Status")
+	resp.Header.Del("X-Xynon-Req-Uri")
+	resp.Header.Del("X-Xynon-Req-Method")
 
 	// Copy response to client.
 	removeHopByHop(resp.Header)

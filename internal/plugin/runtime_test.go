@@ -25,7 +25,7 @@ func TestLoadWasmHandler_Valid(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestLoadWasmHandler_ABIMismatch(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	_, err = rt.LoadWasmHandler(ctx, "bad_abi", badABIWasm, Limits{})
+	_, err = rt.LoadWasmHandler(ctx, "bad_abi", badABIWasm, Limits{}, nil)
 	if err == nil {
 		t.Fatal("expected ABI version error")
 	}
@@ -64,7 +64,7 @@ func TestLoadWasmHandler_MissingExport(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	_, err = rt.LoadWasmHandler(ctx, "no_exports", noExportWasm, Limits{})
+	_, err = rt.LoadWasmHandler(ctx, "no_exports", noExportWasm, Limits{}, nil)
 	if err == nil {
 		t.Fatal("expected missing export error")
 	}
@@ -83,7 +83,7 @@ func TestOnRequest_ContinueAction(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestOnRequest_Timeout(t *testing.T) {
 	cancelCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
 	cancel()
 
-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{Timeout: 1 * time.Nanosecond}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestOnResponse_ContinueAction(t *testing.T) {
 	}
 	defer rt.Close(ctx)
 
-	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{})
+	p, err := rt.LoadWasmHandler(ctx, "valid", validWasm, Limits{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

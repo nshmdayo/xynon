@@ -70,7 +70,7 @@ func (r *Runtime) Close(ctx context.Context) {
 
 // LoadWasmHandler compiles and instantiates the WASM file at path, registers host
 // functions, validates exports, and returns a ready WasmHandler.
-func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits) (*WasmHandler, error) {
+func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits Limits, config map[string]string) (*WasmHandler, error) {
 	wasmBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("plugin %q: read file: %w", name, err)
@@ -91,6 +91,9 @@ func (r *Runtime) LoadWasmHandler(ctx context.Context, name, path string, limits
 		WithStartFunctions(). // do not call _start
 		WithStdout(os.Stdout).
 		WithStderr(os.Stderr)
+	for k, v := range config {
+		modCfg = modCfg.WithEnv(k, v)
+	}
 	mod, err := r.rt.InstantiateModule(ctx, compiled, modCfg)
 	if err != nil {
 		return nil, fmt.Errorf("plugin %q: instantiate: %w", name, err)

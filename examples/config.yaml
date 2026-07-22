@@ -6,6 +6,10 @@ plugins:
   chain:
     - name: auth
     - name: add-header
+    - name: caching
+      config:
+        max_size: "100"
+        default_ttl: "60"
 
 upstreams:
   - name: localhost:8081
