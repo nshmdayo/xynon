@@ -20,6 +20,7 @@ The actual implementation (the coding and testing loop) is completely delegated 
 
 ### 2. Requirements Analysis and Design (Design)
 - Analyze the requirements from the fetched Issue contents and confirm the files that need to be changed and the impact on the project architecture.
+- **IMPORTANT: You MUST require explicit user approval immediately before executing `git checkout -b` or creating a new working branch.**
 - Create a new working branch (e.g., `git checkout -b fix/issue-<number>` or `feature/issue-<number>`).
 
 ### 3. Delegate Implementation to Subagent (Subagent 委譲)
@@ -31,14 +32,21 @@ The actual implementation (the coding and testing loop) is completely delegated 
 
 ### 4. Create Pull Request (Submit)
 After the implementation and testing based on the `feature` Skill are complete, submit the work to the repository.
-1. Create a commit using `git add .` and `git commit -m "Fix: resolve issue #<number>"`.
+**IMPORTANT: You MUST require explicit user approval immediately before all remote or repository mutations including git add, commit, push, and gh pr create.**
+1. Inspect the change set and create a commit using `git add <explicit paths>` and `git commit -m "Fix: resolve issue #<number>"`.
 2. Push to remote with `git push origin <branch name>`.
 3. Create a Pull Request using the `gh pr create` command.
    - In the PR body, be sure to include keywords like `Closes #<Issue Number>` or `Resolves #<Issue Number>` to automatically close the Issue.
 
 **Example PR Creation Command:**
 ```bash
-gh pr create --title "Fix: <Issue Summary>" --body "Closes #123\n\n## Changes\n- Implementation details 1\n- Implementation details 2"
+gh pr create --title "Fix: <Issue Summary>" --body-file - << 'MYEOF'
+Closes #123
+
+## Changes
+- Implementation details 1
+- Implementation details 2
+MYEOF
 ```
 
 ### 5. Completion Reporting (Report)
