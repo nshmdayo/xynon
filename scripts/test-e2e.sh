@@ -101,12 +101,13 @@ else
 fi
 
 # Test 6: Circuit Breaker triggering
+# Use Cache-Control: no-cache to bypass the caching plugin for circuit breaker tests
 echo "Triggering circuit breaker (2 failures)..."
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
-curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
+curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081/error > /dev/null
 
 # Test 7: Circuit Breaker Open
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "503 Service Unavailable"; then
     echo "✅ Circuit Breaker Open test passed"
 else
@@ -118,7 +119,7 @@ fi
 # Test 8: Circuit Breaker Half-Open/Recovery
 echo "Waiting 3 seconds for Circuit Breaker timeout..."
 sleep 3
-RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
+RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "Cache-Control: no-cache" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "200 OK"; then
     echo "✅ Circuit Breaker Half-Open Recovery test passed"
 else
