@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Generate a test-specific config with refill_rate: 0 to avoid wall-clock
+# dependence in the rate-limit test (token refill during sequential curls
+# could make the 6th request pass on slow CI).
+TEST_CONFIG="$(mktemp /tmp/xynon-e2e-config.XXXXXX.yaml)"
+sed 's/refill_rate: [0-9]*/refill_rate: 0/' examples/config.yaml > "$TEST_CONFIG"
+
 echo "==> Building proxy..."
 make build
 
@@ -12,11 +18,11 @@ go run scripts/echo.go &
 ECHO_PID=$!
 
 echo "==> Starting proxy..."
-./bin/xynon -config examples/config.yaml &
+./bin/xynon -config "$TEST_CONFIG" &
 PROXY_PID=$!
 
 # Ensure processes are killed on exit
-trap 'kill $PROXY_PID $ECHO_PID 2>/dev/null' EXIT
+trap 'kill $PROXY_PID $ECHO_PID 2>/dev/null; rm -f "$TEST_CONFIG"' EXIT
 
 # Wait for proxy and echo server to start
 echo "==> Waiting for services to start..."
@@ -38,7 +44,8 @@ else
 fi
 
 # Test 2: auth plugin with token (expect 200) + add-header plugin
-export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
 RESPONSE=$(curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -x http://localhost:8080 http://localhost:8081)
 if echo "$RESPONSE" | grep -q "X-Xynon: true"; then
     echo "✅ auth plugin (with token) & add-header plugin test passed"
@@ -86,7 +93,8 @@ fi
 
 # Test 5: Rate Limiter
 echo "==> Running Test 5: Rate Limiter"
-export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
 # Use a unique X-Forwarded-For for this test so we have a fresh bucket.
 IP="10.0.0.5"
 for idx in 1 2 3 4 5; do
@@ -115,7 +123,8 @@ fi
 # Test 6: Circuit Breaker triggering
 # Use a dedicated IP for circuit breaker tests to avoid rate limiter interference from Test 5
 CB_IP="10.0.0.99"
-export JWT_TOKEN=$(go run scripts/gen_jwt.go)
+JWT_TOKEN=$(go run scripts/gen_jwt.go)
+export JWT_TOKEN
 echo "Triggering circuit breaker (2 failures)..."
 curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
 curl -s -D - -H "Authorization: Bearer $JWT_TOKEN" -H "X-Forwarded-For: $CB_IP" -x http://localhost:8080 http://localhost:8081/error > /dev/null
