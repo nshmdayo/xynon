@@ -19,7 +19,7 @@ func (m *mockMemory) Read(offset, byteCount uint32) ([]byte, bool) {
 	if uint64(offset)+uint64(byteCount) > uint64(len(m.data)) {
 		return nil, false
 	}
-	return m.data[offset : offset+byteCount], true
+	return m.data[offset : uint64(offset)+uint64(byteCount)], true
 }
 
 func (m *mockMemory) Write(offset uint32, v []byte) bool {
